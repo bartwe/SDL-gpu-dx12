@@ -592,26 +592,19 @@ typedef struct SDL_GpuGraphicsPipelineAttachmentInfo
 	SDL_GpuTextureFormat depthStencilFormat;
 } SDL_GpuGraphicsPipelineAttachmentInfo;
 
-/* A description of a resource that will be bound by a shader. */
+/* A single description of a resource that will be bound by a shader. */
 typedef struct SDL_GpuShaderResourceDescription
 {
 	SDL_GpuShaderResourceType resourceType;
-	SDL_GpuShaderStageFlags shaderStageFlags;
+	SDL_GpuShaderStageFlagBits shaderStage;
 } SDL_GpuShaderResourceDescription;
 
-/* Defines the resource types that compose a shader resource set. */
-typedef struct SDL_GpuShaderResourceSetLayoutInfo
+/* Describes the resources that are used by a pipeline. */
+typedef struct SDL_GpuShaderResourceLayoutInfo
 {
-	SDL_GpuShaderResourceDescription *elementDescriptions;
-	Uint32 elementDescriptionCount;
-} SDL_GpuShaderResourceSetLayoutInfo;
-
-/* Defines the resource sets that will be used in a pipeline. */
-typedef struct SDL_GpuPipelineResourceLayoutInfo
-{
-	SDL_GpuShaderResourceSetLayoutInfo *setLayoutInfos;
-	Uint32 setLayoutInfoCount;
-} SDL_GpuPipelineResourceLayoutInfo;
+	SDL_GpuShaderResourceDescription *resourceDescriptions;
+	Uint32 resourceDescriptionCount;
+} SDL_GpuShaderResourceLayoutInfo;
 
 typedef struct SDL_GpuGraphicsPipelineCreateInfo
 {
@@ -623,14 +616,14 @@ typedef struct SDL_GpuGraphicsPipelineCreateInfo
 	SDL_GpuMultisampleState multisampleState;
 	SDL_GpuDepthStencilState depthStencilState;
 	SDL_GpuGraphicsPipelineAttachmentInfo attachmentInfo;
-	SDL_GpuPipelineResourceLayoutInfo pipelineResourceLayoutInfo;
+	SDL_GpuShaderResourceLayoutInfo pipelineResourceLayoutInfo;
 	float blendConstants[4];
 } SDL_GpuGraphicsPipelineCreateInfo;
 
 typedef struct SDL_GpuComputePipelineCreateInfo
 {
 	SDL_GpuShader *computeShader;
-	SDL_GpuPipelineResourceLayoutInfo pipelineResourceLayoutInfo;
+	SDL_GpuShaderResourceLayoutInfo pipelineResourceLayoutInfo;
 } SDL_GpuComputePipelineCreateInfo;
 
 typedef struct SDL_GpuColorAttachmentInfo
@@ -1314,10 +1307,9 @@ extern DECLSPEC void SDLCALL SDL_GpuBindIndexBuffer(
 );
 
 /**
- * Binds a resource set on the currently bound graphics pipeline.
+ * Binds resources on the currently bound graphics pipeline.
  *
  * \param renderPass a render pass handle
- * \param setIndex the resource set index
  * \param resourceBindings an array of resource bindings
  * \param resourceBindingCount the number of resource bindings provided
  *
@@ -1325,7 +1317,6 @@ extern DECLSPEC void SDLCALL SDL_GpuBindIndexBuffer(
  */
 extern DECLSPEC void SDLCALL SDL_GpuBindGraphicsResourceSet(
 	SDL_GpuRenderPass *renderPass,
-	Uint32 setIndex,
 	SDL_GpuShaderResourceBinding *resourceBindings,
 	Uint32 resourceBindingCount
 );
@@ -1456,10 +1447,9 @@ extern DECLSPEC void SDLCALL SDL_GpuBindComputePipeline(
 );
 
 /**
- * Binds a resource set on the currently bound compute pipeline.
+ * Binds resources on the currently bound compute pipeline.
  *
  * \param computePass a compute pass handle
- * \param setIndex the resource set index
  * \param resourceBindings an array of resource bindings
  * \param resourceBindingCount the number of resource bindings provided
  *
@@ -1467,7 +1457,6 @@ extern DECLSPEC void SDLCALL SDL_GpuBindComputePipeline(
  */
 extern DECLSPEC void SDLCALL SDL_GpuBindComputeResourceSet(
 	SDL_GpuComputePass *computePass,
-	Uint32 setIndex,
 	SDL_GpuShaderResourceBinding *resourceBindings,
 	Uint32 resourceBindingCount
 );

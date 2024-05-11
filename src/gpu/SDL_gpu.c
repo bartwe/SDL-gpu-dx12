@@ -670,7 +670,6 @@ void SDL_GpuBindIndexBuffer(
 
 void SDL_GpuBindGraphicsResourceSet(
 	SDL_GpuRenderPass *renderPass,
-	Uint32 setIndex,
 	SDL_GpuShaderResourceBinding *resourceBindings,
 	Uint32 resourceBindingCount
 ) {
@@ -678,7 +677,6 @@ void SDL_GpuBindGraphicsResourceSet(
 	CHECK_RENDERPASS
 	RENDERPASS_DEVICE->BindGraphicsResourceSet(
 		RENDERPASS_COMMAND_BUFFER,
-		setIndex,
 		resourceBindings,
 		resourceBindingCount
 	);
@@ -794,7 +792,6 @@ void SDL_GpuBindComputePipeline(
 
 void SDL_GpuBindComputeResourceSet(
 	SDL_GpuComputePass *computePass,
-	Uint32 setIndex,
 	SDL_GpuShaderResourceBinding *resourceBindings,
 	Uint32 resourceBindingCount
 ) {
@@ -802,7 +799,6 @@ void SDL_GpuBindComputeResourceSet(
 	CHECK_COMPUTEPASS
 	COMPUTEPASS_DEVICE->BindComputeResourceSet(
 		COMPUTEPASS_COMMAND_BUFFER,
-		setIndex,
 		resourceBindings,
 		resourceBindingCount
 	);

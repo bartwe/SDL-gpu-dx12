@@ -364,7 +364,6 @@ struct SDL_GpuDevice
 
 	void (*BindGraphicsResourceSet)(
 		SDL_GpuCommandBuffer *commandBuffer,
-		Uint32 setIndex,
 		SDL_GpuShaderResourceBinding *resourceBindings,
 		Uint32 resourceBindingCount
 	);
@@ -415,7 +414,6 @@ struct SDL_GpuDevice
 
 	void (*BindComputeResourceSet)(
 		SDL_GpuCommandBuffer *commandBuffer,
-		Uint32 setIndex,
 		SDL_GpuShaderResourceBinding *resourceBinding,
 		Uint32 resourceBindingCount
 	);
