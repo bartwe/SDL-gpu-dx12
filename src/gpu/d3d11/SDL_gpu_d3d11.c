@@ -1583,15 +1583,15 @@ static SDL_GpuComputePipeline* D3D11_CreateComputePipeline(
 	pipeline->computeShader = (ID3D11ComputeShader*) shader->shader;
     ID3D11ComputeShader_AddRef(pipeline->computeShader);
 
-    pipeline->resourceLayout.resourceSetCount = pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfoCount;
+    pipeline->resourceLayout.resourceSetCount = 1;
     pipeline->resourceLayout.resourceSets = SDL_malloc(
         pipeline->resourceLayout.resourceSetCount * sizeof(D3D11ShaderResourceSet)
     );
 
-    for (i = 0; i < pipeline->resourceLayout.resourceSetCount; i += 1)
-    {
+    /* FIXME: Bad spacing to shrink the diff temporarily */
+    i = 0;
         pipeline->resourceLayout.resourceSets[i].resourceInfoCount =
-            pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfos[i].elementDescriptionCount;
+            pipelineCreateInfo->pipelineResourceLayoutInfo.resourceDescriptionCount;
 
         pipeline->resourceLayout.resourceSets[i].resourceInfos = SDL_malloc(
             pipeline->resourceLayout.resourceSets[i].resourceInfoCount * sizeof(D3D11ShaderResourceInfo)
@@ -1599,7 +1599,7 @@ static SDL_GpuComputePipeline* D3D11_CreateComputePipeline(
 
         for (j = 0; j < pipeline->resourceLayout.resourceSets[i].resourceInfoCount; j += 1)
         {
-            resourceType = pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfos[i].elementDescriptions[j].resourceType;
+            resourceType = pipelineCreateInfo->pipelineResourceLayoutInfo.resourceDescriptions[j].resourceType;
 
             /* TODO: validate shader stage flag? */
             pipeline->resourceLayout.resourceSets[i].resourceInfos[j].bindSlotCount = 1;
@@ -1634,7 +1634,6 @@ static SDL_GpuComputePipeline* D3D11_CreateComputePipeline(
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unsupported resource type for compute shader!");
             }
         }
-    }
 
 	return (SDL_GpuComputePipeline*) pipeline;
 }
@@ -1741,15 +1740,15 @@ static SDL_GpuGraphicsPipeline* D3D11_CreateGraphicsPipeline(
 
 	/* Resource Layout */
 
-    pipeline->resourceLayout.resourceSetCount = pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfoCount;
+    pipeline->resourceLayout.resourceSetCount = 1;
     pipeline->resourceLayout.resourceSets = SDL_malloc(
         pipeline->resourceLayout.resourceSetCount * sizeof(D3D11ShaderResourceSet)
     );
 
-    for (i = 0; i < pipeline->resourceLayout.resourceSetCount; i += 1)
-    {
+    /* FIXME: Bad spacing to shrink the diff temporarily */
+    i = 0;
         pipeline->resourceLayout.resourceSets[i].resourceInfoCount =
-            pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfos[i].elementDescriptionCount;
+            pipelineCreateInfo->pipelineResourceLayoutInfo.resourceDescriptionCount;
 
         pipeline->resourceLayout.resourceSets[i].resourceInfos = SDL_malloc(
             pipeline->resourceLayout.resourceSets[i].resourceInfoCount * sizeof(D3D11ShaderResourceInfo)
@@ -1757,8 +1756,8 @@ static SDL_GpuGraphicsPipeline* D3D11_CreateGraphicsPipeline(
 
         for (j = 0; j < pipeline->resourceLayout.resourceSets[i].resourceInfoCount; j += 1)
         {
-            resourceType = pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfos[i].elementDescriptions[j].resourceType;
-            shaderStageFlags = pipelineCreateInfo->pipelineResourceLayoutInfo.setLayoutInfos[i].elementDescriptions[j].shaderStageFlags;
+            resourceType = pipelineCreateInfo->pipelineResourceLayoutInfo.resourceDescriptions[j].resourceType;
+            shaderStageFlags = pipelineCreateInfo->pipelineResourceLayoutInfo.resourceDescriptions[j].shaderStage;
 
             pipeline->resourceLayout.resourceSets[i].resourceInfos[j].resourceType = resourceType;
 
@@ -1852,7 +1851,6 @@ static SDL_GpuGraphicsPipeline* D3D11_CreateGraphicsPipeline(
                 return NULL;
             }
         }
-    }
 
 	return (SDL_GpuGraphicsPipeline*) pipeline;
 }
@@ -3870,7 +3868,6 @@ static SDL_GpuCommandBuffer* D3D11_AcquireCommandBuffer(
 static void D3D11_INTERNAL_BindResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_bool graphics, /* if not graphics, it's compute! */
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBindings,
     Uint32 resourceBindingCount
 ) {
@@ -3884,6 +3881,9 @@ static void D3D11_INTERNAL_BindResourceSet(
     D3D11UniformBuffer *uniformBuffer;
     SDL_bool uniformBufferAlreadyBound = SDL_FALSE;
     Uint32 i, j;
+
+    /* FIXME: Obsolete this variable, it should not exist still! */
+    Uint32 setIndex = 0;
 
     if (graphics)
     {
@@ -4603,14 +4603,12 @@ static void D3D11_BindIndexBuffer(
 
 static void D3D11_BindGraphicsResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBindings,
     Uint32 resourceBindingCount
 ) {
     D3D11_INTERNAL_BindResourceSet(
         commandBuffer,
         SDL_TRUE,
-        setIndex,
         resourceBindings,
         resourceBindingCount
     );
@@ -4835,7 +4833,6 @@ static void D3D11_Blit(
 
         D3D11_BindGraphicsResourceSet(
             commandBuffer,
-            1,
             &resourceBinding,
             1
         );
@@ -4862,7 +4859,6 @@ static void D3D11_Blit(
 
     D3D11_BindGraphicsResourceSet(
         commandBuffer,
-        0,
         &resourceBinding,
         1
     );
@@ -4903,14 +4899,12 @@ static void D3D11_BindComputePipeline(
 
 static void D3D11_BindComputeResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBindings,
     Uint32 resourceBindingCount
 ) {
     D3D11_INTERNAL_BindResourceSet(
         commandBuffer,
         SDL_FALSE,
-        setIndex,
         resourceBindings,
         resourceBindingCount
     );
@@ -6263,7 +6257,6 @@ static void D3D11_INTERNAL_InitBlitPipelines(
     SDL_GpuVertexBinding binding;
     SDL_GpuVertexAttribute attribute;
     SDL_GpuColorAttachmentDescription colorAttachmentDesc;
-    SDL_GpuShaderResourceSetLayoutInfo resourceSetLayoutInfos[2];
     SDL_GpuShaderResourceDescription resourceDescriptions[2];
 
     /* Fullscreen vertex shader */
@@ -6371,13 +6364,10 @@ static void D3D11_INTERNAL_InitBlitPipelines(
     blitPipelineCreateInfo.blendConstants[3] = 1.0f;
 
     resourceDescriptions[0].resourceType = SDL_GPU_RESOURCETYPE_TEXTURE_SAMPLER;
-    resourceDescriptions[0].shaderStageFlags = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    resourceDescriptions[0].shaderStage = SDL_GPU_SHADERSTAGE_FRAGMENT;
 
-    resourceSetLayoutInfos[0].elementDescriptionCount = 1;
-    resourceSetLayoutInfos[0].elementDescriptions = &resourceDescriptions[0];
-
-	blitPipelineCreateInfo.pipelineResourceLayoutInfo.setLayoutInfoCount = 1;
-    blitPipelineCreateInfo.pipelineResourceLayoutInfo.setLayoutInfos = &resourceSetLayoutInfos[0];
+    blitPipelineCreateInfo.pipelineResourceLayoutInfo.resourceDescriptionCount = 1;
+    blitPipelineCreateInfo.pipelineResourceLayoutInfo.resourceDescriptions = &resourceDescriptions[0];
 
     renderer->blitFrom2DPipeline = D3D11_CreateGraphicsPipeline(
         (SDL_GpuRenderer*) renderer,
@@ -6393,13 +6383,10 @@ static void D3D11_INTERNAL_InitBlitPipelines(
     blitPipelineCreateInfo.fragmentShader = renderer->blitFrom2DArrayPixelShader;
 
     resourceDescriptions[1].resourceType = SDL_GPU_RESOURCETYPE_UNIFORM_BUFFER;
-    resourceDescriptions[1].shaderStageFlags = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    resourceDescriptions[1].shaderStage = SDL_GPU_SHADERSTAGE_FRAGMENT;
 
-    resourceSetLayoutInfos[1].elementDescriptionCount = 1;
-    resourceSetLayoutInfos[1].elementDescriptions = &resourceDescriptions[1];
-
-    blitPipelineCreateInfo.pipelineResourceLayoutInfo.setLayoutInfoCount = 2;
-    blitPipelineCreateInfo.pipelineResourceLayoutInfo.setLayoutInfos = &resourceSetLayoutInfos[0];
+    blitPipelineCreateInfo.pipelineResourceLayoutInfo.resourceDescriptionCount = 2;
+    blitPipelineCreateInfo.pipelineResourceLayoutInfo.resourceDescriptions = &resourceDescriptions[0];
 
     renderer->blitFrom2DArrayPipeline = D3D11_CreateGraphicsPipeline(
         (SDL_GpuRenderer*) renderer,
