@@ -1856,7 +1856,6 @@ static SDL_GpuCommandBuffer* METAL_AcquireCommandBuffer(
 static void METAL_INTERNAL_BindResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_bool graphics, /* if not graphics, it's compute! */
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBindings,
     Uint32 resourceBindingCount
 ) {
@@ -2114,14 +2113,12 @@ static void METAL_BindIndexBuffer(
 
 static void METAL_BindGraphicsResourceSet(
    SDL_GpuCommandBuffer *commandBuffer,
-   Uint32 setIndex,
    SDL_GpuShaderResourceBinding *resourceBindings,
    Uint32 resourceBindingCount
 ) {
     METAL_INTERNAL_BindResourceSet(
         commandBuffer,
         SDL_TRUE,
-        setIndex,
         resourceBindings,
         resourceBindingCount
     );
@@ -2225,14 +2222,12 @@ static void METAL_BindComputePipeline(
 
 void METAL_BindComputeResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBinding,
     Uint32 resourceBindingCount
 ) {
     METAL_INTERNAL_BindResourceSet(
         commandBuffer,
         SDL_FALSE,
-        setIndex,
         resourceBinding,
         resourceBindingCount
     );
