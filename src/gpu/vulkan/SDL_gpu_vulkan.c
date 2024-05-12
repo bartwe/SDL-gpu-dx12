@@ -3610,7 +3610,7 @@ static void VULKAN_INTERNAL_InitializeDescriptorSetPool(
 
 static SDL_bool VULKAN_INTERNAL_InitializePipelineResourceLayout(
     VulkanRenderer *renderer,
-    SDL_GpuPipelineResourceLayoutInfo *resourceLayoutInfo,
+    SDL_GpuShaderResourceLayoutInfo *resourceLayoutInfo,
     VulkanPipelineResourceLayout *pipelineResourceLayout
 ) {
     VkDescriptorSetLayoutBinding *descriptorSetLayoutBindings;
@@ -3620,16 +3620,16 @@ static SDL_bool VULKAN_INTERNAL_InitializePipelineResourceLayout(
     VkResult vulkanResult;
     Uint32 i, j;
 
-    pipelineResourceLayout->descriptorSetCount = resourceLayoutInfo->setLayoutInfoCount;
+    pipelineResourceLayout->descriptorSetCount = 1;
     pipelineResourceLayout->descriptorSetPools = SDL_malloc(
         pipelineResourceLayout->descriptorSetCount * sizeof(DescriptorSetPool)
     );
 
     descriptorSetLayouts = SDL_stack_alloc(VkDescriptorSetLayout, pipelineResourceLayout->descriptorSetCount);
 
-    for (i = 0; i < resourceLayoutInfo->setLayoutInfoCount; i += 1)
-    {
-        pipelineResourceLayout->descriptorSetPools[i].descriptorInfoCount = resourceLayoutInfo->setLayoutInfos[i].elementDescriptionCount;
+    /* FIXME: Bad spacing to shrink the diff temporarily */
+    i = 0;
+        pipelineResourceLayout->descriptorSetPools[i].descriptorInfoCount = resourceLayoutInfo->resourceDescriptionCount;
         pipelineResourceLayout->descriptorSetPools[i].descriptorPools = SDL_malloc(
             pipelineResourceLayout->descriptorSetPools[i].descriptorInfoCount * sizeof(VkDescriptorPool)
         );
@@ -3637,7 +3637,7 @@ static SDL_bool VULKAN_INTERNAL_InitializePipelineResourceLayout(
         descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptorSetLayoutCreateInfo.pNext = NULL;
         descriptorSetLayoutCreateInfo.flags = 0;
-        descriptorSetLayoutCreateInfo.bindingCount = resourceLayoutInfo->setLayoutInfos[i].elementDescriptionCount;
+        descriptorSetLayoutCreateInfo.bindingCount = resourceLayoutInfo->resourceDescriptionCount;
 
         descriptorSetLayoutBindings = SDL_stack_alloc(VkDescriptorSetLayoutBinding, descriptorSetLayoutCreateInfo.bindingCount);
         pipelineResourceLayout->descriptorSetPools[i].descriptorInfos = SDL_malloc(
@@ -3649,13 +3649,13 @@ static SDL_bool VULKAN_INTERNAL_InitializePipelineResourceLayout(
             /* FIXME: convert stageFlags to actual vulkan type */
             descriptorSetLayoutBindings[j].binding = j;
             descriptorSetLayoutBindings[j].descriptorCount = 1;
-            descriptorSetLayoutBindings[j].descriptorType = SDLToVK_DescriptorType[resourceLayoutInfo->setLayoutInfos[i].elementDescriptions[j].resourceType];
-            descriptorSetLayoutBindings[j].stageFlags = SDLToVK_ShaderStageFlags(resourceLayoutInfo->setLayoutInfos[i].elementDescriptions[j].shaderStageFlags);
+            descriptorSetLayoutBindings[j].descriptorType = SDLToVK_DescriptorType[resourceLayoutInfo->resourceDescriptions[j].resourceType];
+            descriptorSetLayoutBindings[j].stageFlags = SDLToVK_ShaderStageFlags(resourceLayoutInfo->resourceDescriptions[j].shaderStage);
             descriptorSetLayoutBindings[j].pImmutableSamplers = NULL;
 
-            if (resourceLayoutInfo->setLayoutInfos[i].elementDescriptions[j].resourceType == SDL_GPU_RESOURCETYPE_UNIFORM_BUFFER)
+            if (resourceLayoutInfo->resourceDescriptions[j].resourceType == SDL_GPU_RESOURCETYPE_UNIFORM_BUFFER)
             {
-                if (resourceLayoutInfo->setLayoutInfos[i].elementDescriptionCount > 1)
+                if (resourceLayoutInfo->resourceDescriptionCount > 1)
                 {
                     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "A uniform buffer must be in its own descriptor set!");
                     return SDL_FALSE;
@@ -3684,12 +3684,11 @@ static SDL_bool VULKAN_INTERNAL_InitializePipelineResourceLayout(
             LogVulkanResultAsError("vkCreateDescriptorSetLayout", vulkanResult);
             return SDL_FALSE;
         }
-    }
 
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCreateInfo.pNext = NULL;
     pipelineLayoutCreateInfo.flags = 0;
-    pipelineLayoutCreateInfo.setLayoutCount = resourceLayoutInfo->setLayoutInfoCount;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
     pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts;
     pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
     pipelineLayoutCreateInfo.pPushConstantRanges = NULL;
@@ -3709,13 +3708,12 @@ static SDL_bool VULKAN_INTERNAL_InitializePipelineResourceLayout(
         return SDL_FALSE;
     }
 
-    for (i = 0; i < resourceLayoutInfo->setLayoutInfoCount; i += 1)
-    {
+    /* FIXME: Bad spacing to shrink the diff temporarily */
+    i = 0;
         VULKAN_INTERNAL_InitializeDescriptorSetPool(
             renderer,
             &pipelineResourceLayout->descriptorSetPools[i]
         );
-    }
 
     return SDL_TRUE;
 }
@@ -7143,7 +7141,6 @@ static void VULKAN_SetScissor(
 static void VULKAN_INTERNAL_BindResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
     VkPipelineBindPoint pipelineBindPoint,
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBindings,
     Uint32 resourceBindingCount
 ) {
@@ -7163,6 +7160,9 @@ static void VULKAN_INTERNAL_BindResourceSet(
     Uint32 imageInfoCount = 0;
     SDL_bool doBind = SDL_TRUE;
     Uint32 i, j;
+
+    /* FIXME: Obsolete this variable, it should not exist still! */
+    Uint32 setIndex = 0;
 
     if (pipelineBindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS)
     {
@@ -7892,14 +7892,12 @@ static void VULKAN_BindIndexBuffer(
 
 static void VULKAN_BindGraphicsResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
-    Uint32 setIndex,
     SDL_GpuShaderResourceBinding *resourceBindings,
     Uint32 resourceBindingCount
 ) {
     VULKAN_INTERNAL_BindResourceSet(
         commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
-        setIndex,
         resourceBindings,
         resourceBindingCount
     );
@@ -7970,14 +7968,12 @@ static void VULKAN_BindComputePipeline(
 
 static void VULKAN_BindComputeResourceSet(
     SDL_GpuCommandBuffer *commandBuffer,
-    Uint32 setIndex,
 	SDL_GpuShaderResourceBinding *resourceBindings,
 	Uint32 resourceBindingCount
 ) {
     VULKAN_INTERNAL_BindResourceSet(
         commandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
-        setIndex,
         resourceBindings,
         resourceBindingCount
     );
