@@ -366,7 +366,7 @@ Render(SDL_Window *window, const int windownum)
     pass = SDL_GpuBeginRenderPass(cmd, &color_attachment, 1, &depth_attachment);
     SDL_GpuBindGraphicsPipeline(pass, render_state.pipeline);
     SDL_GpuBindVertexBuffers(pass, 0, 1, &vertex_binding);
-    SDL_GpuBindGraphicsResourceSet(pass, 0, &resource_binding, 1);
+    SDL_GpuBindGraphicsResourceSet(pass, &resource_binding, 1);
     SDL_GpuPushGraphicsUniformData(pass, render_state.buf_uniform, matrix_final, sizeof(matrix_final));
     SDL_GpuDrawPrimitives(pass, 0, 12);
     SDL_GpuEndRenderPass(pass);
@@ -421,7 +421,6 @@ init_render_state(void)
     SDL_GpuVertexBinding vertex_binding;
     SDL_GpuShader *vertex_shader;
     SDL_GpuShader *fragment_shader;
-    SDL_GpuShaderResourceSetLayoutInfo layout_info;
     SDL_GpuShaderResourceDescription resource_description;
     int i;
 
@@ -509,13 +508,10 @@ init_render_state(void)
     pipelinedesc.fragmentShader = fragment_shader;
 
     resource_description.resourceType = SDL_GPU_RESOURCETYPE_UNIFORM_BUFFER; /* API FIXME: Enum does not match type name */
-    resource_description.shaderStageFlags = SDL_GPU_SHADERSTAGE_VERTEX;
+    resource_description.shaderStage = SDL_GPU_SHADERSTAGE_VERTEX;
 
-    layout_info.elementDescriptionCount = 1; /* API FIXME: 'resourceDescription' instead of 'elementDescription'? */
-    layout_info.elementDescriptions = &resource_description;
-
-    pipelinedesc.pipelineResourceLayoutInfo.setLayoutInfoCount = 1;
-    pipelinedesc.pipelineResourceLayoutInfo.setLayoutInfos = &layout_info;
+    pipelinedesc.pipelineResourceLayoutInfo.resourceDescriptionCount = 1; /* API FIXME: 'resourceDescription' instead of 'elementDescription'? */
+    pipelinedesc.pipelineResourceLayoutInfo.resourceDescriptions = &resource_description;
 
     vertex_binding.binding = 0;
     vertex_binding.inputRate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
