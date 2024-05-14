@@ -38,13 +38,17 @@ extern "C" {
 
 typedef struct SDL_GpuDevice SDL_GpuDevice;
 typedef struct SDL_GpuBuffer SDL_GpuBuffer;
-typedef struct SDL_GpuUniformBuffer SDL_GpuUniformBuffer;
+typedef struct SDL_GpuBufferCycle SDL_GpuBufferCycle;
 typedef struct SDL_GpuTransferBuffer SDL_GpuTransferBuffer;
+typedef struct SDL_GpuTransferBufferCycle SDL_GpuTransferBufferCycle;
+typedef struct SDL_GpuUniformBuffer SDL_GpuUniformBuffer;
 typedef struct SDL_GpuTexture SDL_GpuTexture;
+typedef struct SDL_GpuTextureCycle SDL_GpuTextureCycle;
 typedef struct SDL_GpuSampler SDL_GpuSampler;
 typedef struct SDL_GpuShader SDL_GpuShader;
 typedef struct SDL_GpuComputePipeline SDL_GpuComputePipeline;
 typedef struct SDL_GpuGraphicsPipeline SDL_GpuGraphicsPipeline;
+typedef struct SDL_GpuResourceSet SDL_GpuResourceSet;
 typedef struct SDL_GpuCommandBuffer SDL_GpuCommandBuffer;
 typedef struct SDL_GpuRenderPass SDL_GpuRenderPass;
 typedef struct SDL_GpuComputePass SDL_GpuComputePass;
@@ -372,6 +376,13 @@ typedef enum SDL_GpuTransferUsage
 	SDL_GPU_TRANSFERUSAGE_TEXTURE
 } SDL_GpuTransferUsage;
 
+typedef enum SDL_ResourceSetType
+{
+    SDL_GPU_RESOURCESETTYPE_BUFFER,
+    SDL_GPU_RESOURCESETTYPE_SAMPLED_TEXTURE,
+    SDL_GPU_RESOURCESETTYPE_STORAGE_TEXTURE
+} SDL_ResourceSetType;
+
 typedef enum SDL_GpuBackendBits
 {
 	SDL_GPU_BACKEND_INVALID = 0,
@@ -597,6 +608,7 @@ typedef struct SDL_GpuShaderResourceDescription
 {
 	SDL_GpuShaderResourceType resourceType;
 	SDL_GpuShaderStageFlagBits shaderStage;
+    SDL_bool isResourceSet;
 } SDL_GpuShaderResourceDescription;
 
 /* Describes the resources that are used by a pipeline. */
@@ -658,9 +670,6 @@ typedef struct SDL_GpuColorAttachmentInfo
     *     This is often a good option for depth/stencil textures.
     */
 	SDL_GpuStoreOp storeOp;
-
-    /* if SDL_TRUE, cycles the texture if the texture slice is bound and loadOp is not LOAD */
-	SDL_bool cycle;
 } SDL_GpuColorAttachmentInfo;
 
 typedef struct SDL_GpuDepthStencilAttachmentInfo
@@ -720,9 +729,6 @@ typedef struct SDL_GpuDepthStencilAttachmentInfo
      *     This is often a good option for depth/stencil textures.
      */
 	SDL_GpuStoreOp stencilStoreOp;
-
-    /* if SDL_TRUE, cycles the texture if the texture slice is bound and any load ops are not LOAD */
-	SDL_bool cycle;
 } SDL_GpuDepthStencilAttachmentInfo;
 
 /* Binding structs */
@@ -742,17 +748,11 @@ typedef struct SDL_GpuTextureSamplerBinding
 typedef struct SDL_GpuStorageBufferBinding
 {
 	SDL_GpuBuffer *gpuBuffer;
-
-    /* if SDL_TRUE, cycles the buffer if it is bound. */
-	SDL_bool cycle;
 } SDL_GpuStorageBufferBinding;
 
 typedef struct SDL_GpuStorageTextureBinding
 {
 	SDL_GpuTextureSlice textureSlice;
-
-    /* if SDL_TRUE, cycles the texture if the texture slice is bound. */
-	SDL_bool cycle;
 } SDL_GpuStorageTextureBinding;
 
 typedef struct SDL_GpuUniformBufferBinding
@@ -760,6 +760,11 @@ typedef struct SDL_GpuUniformBufferBinding
 	SDL_GpuUniformBuffer *uniformBuffer;
 	Uint32 uniformDataSizeInBytes;
 } SDL_GpuUniformBufferBinding;
+
+typedef struct SDL_GpuResourceSetBinding
+{
+    SDL_GpuResourceSet *resourceSet;
+} SDL_GpuResourceSetBinding;
 
 typedef struct SDL_GpuShaderResourceBinding
 {
@@ -772,6 +777,7 @@ typedef struct SDL_GpuShaderResourceBinding
 		SDL_GpuTextureSlice storageTextureReadOnly;
 		SDL_GpuStorageTextureBinding storageTextureReadWrite;
 		SDL_GpuUniformBufferBinding uniformBuffer;
+        SDL_GpuResourceSetBinding resourceSet;
 	} resource;
 } SDL_GpuShaderResourceBinding;
 
@@ -921,6 +927,23 @@ extern DECLSPEC SDL_GpuTexture *SDLCALL SDL_GpuCreateTexture(
 );
 
 /**
+ * Creates a texture cycle object which consists of an arbitrary number of textures.
+ * The cycle can rotate to point to a new texture if the current texture buffer is bound.
+ *
+ * \param device a GPU Context
+ * \param textureCreateInfo a struct describing the state of the texture to create
+ * \returns a texture cycle object on success, or NULL on failure
+ *
+ * \since This function is available since SDL 3.x.x
+ *
+ * \sa SDL_GpuQueueDestroyTextureCycle
+ */
+extern DECLSPEC SDL_GpuTextureCycle *SDLCALL SDL_GpuCreateTextureCycle(
+    SDL_GpuDevice *device,
+    SDL_GpuTextureCreateInfo *textureCreateInfo
+);
+
+/**
  * Creates a buffer object to be used in graphics or compute workflows.
  * The contents of this buffer are undefined until data is written to the buffer.
  *
@@ -944,23 +967,22 @@ extern DECLSPEC SDL_GpuBuffer *SDLCALL SDL_GpuCreateGpuBuffer(
 );
 
 /**
- * Creates a uniform buffer object to be used in shader workflows.
+ * Creates a buffer cycle object, which consists of an arbitrary number of GpuBuffers.
+ * The cycle can rotate to point to a new buffer if the current active buffer is bound.
  *
- * \param device a GPU context
- * \param sizeInBytes the size of the uniform buffer
- * \returns a uniform buffer object on success, or NULL on failure
+ * \param device a GPU Context
+ * \param usageFlags bitflag mask hinting at how the buffer will be used
+ * \param sizeInBytes the size of the buffer
+ * \returns a buffer cycle object on success, or NULL on failure
  *
  * \since This function is available since SDL 3.x.x
  *
- * \sa SDL_GpuBindGraphicsResourceSet
- * \sa SDL_GpuBindComputeResourceSet
- * \sa SDL_GpuPushGraphicsUniformData
- * \sa SDL_GpuPushComputeUniformData
- * \sa SDL_GpuQueueDestroyUniformBuffer
+ * \sa SDL_GpuQueueDestroyBufferCycle
  */
-extern DECLSPEC SDL_GpuUniformBuffer *SDLCALL SDL_GpuCreateUniformBuffer(
-	SDL_GpuDevice *device,
-	Uint32 sizeInBytes
+extern DECLSPEC SDL_GpuBufferCycle *SDLCALL SDL_GpuCreateBufferCycle(
+    SDL_GpuDevice *device,
+    SDL_GpuBufferUsageFlags usageFlags,
+    Uint32 sizeInBytes
 );
 
 /**
@@ -985,6 +1007,65 @@ extern DECLSPEC SDL_GpuTransferBuffer *SDLCALL SDL_GpuCreateTransferBuffer(
 	SDL_GpuTransferUsage usage,
     SDL_GpuTransferBufferMapFlags mapFlags,
 	Uint32 sizeInBytes
+);
+
+/**
+ * Creates a buffer cycle object, which consists of an arbitrary number of transfer buffers.
+ * The cycle can rotate to point to a new buffer if the current active transfer buffer is bound.
+ *
+ * \param device a GPU Context
+ * \param usage specifies whether the transfer buffer will transfer buffers or textures
+ * \param mapFlags specify read-write options for the transfer buffer
+ * \param sizeInBytes the size of the transfer buffer
+ * \returns a transfer buffer cycle on success, or NULL on failure
+ *
+ * \since This function is available since SDL 3.x.x
+ *
+ * \sa SDL_GpuUploadToBuffer
+ * \sa SDL_GpuDownloadFromBuffer
+ * \sa SDL_GpuUploadToTexture
+ * \sa SDL_GpuDownloadFromTexture
+ * \sa SDL_GpuQueueDestroyTransferBuffer
+ */
+extern DECLSPEC SDL_GpuTransferBufferCycle *SDLCALL SDL_GpuCreateTransferBufferCycle(
+    SDL_GpuDevice *device,
+	SDL_GpuTransferUsage usage,
+    SDL_GpuTransferBufferMapFlags mapFlags,
+	Uint32 sizeInBytes
+);
+
+/**
+ * Creates a uniform buffer object to be used in shader workflows.
+ *
+ * \param device a GPU context
+ * \param sizeInBytes the size of the uniform buffer
+ * \returns a uniform buffer object on success, or NULL on failure
+ *
+ * \since This function is available since SDL 3.x.x
+ *
+ * \sa SDL_GpuBindGraphicsResourceSet
+ * \sa SDL_GpuBindComputeResourceSet
+ * \sa SDL_GpuPushGraphicsUniformData
+ * \sa SDL_GpuPushComputeUniformData
+ * \sa SDL_GpuQueueDestroyUniformBuffer
+ */
+extern DECLSPEC SDL_GpuUniformBuffer *SDLCALL SDL_GpuCreateUniformBuffer(
+	SDL_GpuDevice *device,
+	Uint32 sizeInBytes
+);
+
+/**
+ * Creates a resource set to be used in bindless workflows.
+ *
+ * \param device a GPU context
+ * \param resourceSetType the type of resource that will be in the set
+ * \returns a resource set object
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC SDL_GpuResourceSet *SDLCALL SDL_GpuCreateResourceSet(
+    SDL_GpuDevice *device,
+    SDL_ResourceSetType resourceSetType
 );
 
 /**
@@ -1065,6 +1146,19 @@ extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyTexture(
 );
 
 /**
+ * Specifies that the given texture cycle should be destroyed.
+ *
+ * \param device a GPU context
+ * \param textureCycle a texture cycle to be destroyed
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC void SDLCALL SDL_GpuDestroyTextureCycle(
+    SDL_GpuDevice *device,
+    SDL_GpuTextureCycle *textureCycle
+);
+
+/**
  * Specifies that the given sampler should be destroyed once it is no longer referenced.
  *
  * \param device a GPU context
@@ -1091,16 +1185,16 @@ extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyGpuBuffer(
 );
 
 /**
- * Specifies that the given uniform buffer should be destroyed once it is no longer bound.
+ * Specifies that the given buffer cycle should be destroyed.
  *
- * \param device a GPU context
- * \param uniformBuffer a uniform buffer to be destroyed
+ * \param device a Gpu context
+ * \param bufferCycle a buffer cycle to be destroyed
  *
  * \since This function is available since SDL 3.x.x
  */
-extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyUniformBuffer(
-	SDL_GpuDevice *device,
-	SDL_GpuUniformBuffer *uniformBuffer
+extern DECLSPEC void SDLCALL SDL_GpuDestroyBufferCycle(
+    SDL_GpuDevice *device,
+    SDL_GpuBufferCycle *bufferCycle
 );
 
 /**
@@ -1114,6 +1208,32 @@ extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyUniformBuffer(
 extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyTransferBuffer(
 	SDL_GpuDevice *device,
 	SDL_GpuTransferBuffer *transferBuffer
+);
+
+/**
+ * Specifies that the given transfer buffer cycle should be destroyed.
+ *
+ * \param device a GPU context
+ * \param transferBufferCycle a transfer buffer cycle to be destroyed
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC void SDLCALL SDL_GpuDestroyTransferBufferCycle(
+    SDL_GpuDevice *device,
+    SDL_GpuTransferBufferCycle *transferBufferCycle
+);
+
+/**
+ * Specifies that the given uniform buffer should be destroyed once it is no longer bound.
+ *
+ * \param device a GPU context
+ * \param uniformBuffer a uniform buffer to be destroyed
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyUniformBuffer(
+	SDL_GpuDevice *device,
+	SDL_GpuUniformBuffer *uniformBuffer
 );
 
 /**
@@ -1156,6 +1276,17 @@ extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyGraphicsPipeline(
 );
 
 /**
+ * Specifies that the given resource set should be destroyed.
+ *
+ * \param device a GPU context
+ * \param resourceSet a resource set to destroy
+ */
+extern DECLSPEC void SDLCALL SDL_GpuDestroyResourceSet(
+    SDL_GpuDevice *device,
+    SDL_GpuResourceSet *resourceSet
+);
+
+/**
  * Specifies that the given occlusion query should be destroyed once it is no longer referenced.
  *
  * \param device a GPU context
@@ -1181,30 +1312,131 @@ extern DECLSPEC void SDLCALL SDL_GpuQueueDestroyOcclusionQuery(
  * unless you acquire a fence when submitting the command buffer and wait on it.
  * However, this doesn't mean you need to track resource usage manually.
  *
- * All of the functions and structs that involve writing to a resource have a "cycle" bool.
- * GpuTransferBuffer, GpuBuffer, and GpuTexture all effectively function as ring buffers on internal resources.
- * When cycle is SDL_TRUE, if the resource is bound, the cycle rotates to the next unbound internal resource,
- * or if none are available, a new one is created.
+ * Buffers and textures can be created on their own, but they can also be created via a buffer or texture cycle.
+ * These effectively function as ring buffers. Each cycle has an active resource that it points to.
+ * When CycleBuffer or CycleTexture are called, if the current active resource is bound, the cycle rotates to a new active resource.
+ * If none is available, a new resource is created within the cycle.
  * This means you don't have to worry about complex state tracking and synchronization as long as cycling is correctly employed.
  *
- * For example: you can call SetTransferData and then UploadToTexture. The next time you call SetTransferData,
- * if you set the cycle param to SDL_TRUE, you don't have to worry about overwriting any data that is not yet uploaded.
+ * For example: say you call SetTransferData and then UploadToBuffer. The next time you call SetTransferData,
+ * if you cycle first, you don't have to worry about overwriting any data that is not yet uploaded.
  *
  * Another example: If you are using a texture in a render pass every frame, this can cause a data dependency between frames.
- * If you set cycle to SDL_TRUE in the ColorAttachmentInfo struct, you can prevent this data dependency.
- *
- * Note that all functions which write to a texture specifically write to a GpuTextureSlice,
- * and these slices themselves are tracked for binding.
- * The GpuTexture will only cycle if the specific GpuTextureSlice being written to is bound.
+ * If you cycle the texture before calling BeginRenderPass, you can prevent this data dependency.
  *
  * Cycling will never undefine already bound data.
- * When cycling, all data in the resource is considered to be undefined for subsequent commands until that data is written again.
+ * When cycling, all data in the resource should be considered to be undefined for subsequent commands until that data is written again.
  * You must take care not to read undefined data.
  *
  * You must also take care not to overwrite a section of data that has been referenced in a command without cycling first.
  * It is OK to overwrite unreferenced data in a bound resource without cycling,
  * but overwriting a section of data that has already been referenced will produce unexpected results.
  */
+
+/**
+ * Cycles a buffer cycle, returning an unbound buffer in the cycle.
+ * This buffer may be the current active buffer of the cycle.
+ * May create a new buffer if all current buffers in the cycle are bound.
+ *
+ * \param bufferCycle A buffer cycle to cycle
+ * \returns an unbound buffer in the cycle
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC SDL_GpuBuffer *SDLCALL SDL_CycleBuffer(
+    SDL_GpuBufferCycle *bufferCycle
+);
+
+/**
+ * Cycles a transfer buffer cycle, returning an unbound transfer buffer in the cycle.
+ * This transfer buffer may be the current active transfer buffer of the cycle.
+ * May create a new transfer buffer if all current transfer buffers in the cycle are bound.
+ *
+ * \param transferBufferCycle A transfer buffer cycle to cycle
+ * \returns an unbound transfer buffer in the cycle
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC SDL_GpuTransferBuffer *SDLCALL SDL_CycleTransferBuffer(
+    SDL_GpuTransferBufferCycle *transferBufferCycle
+);
+
+/**
+ * Cycles a texture cycle, returning an unbound texture in the cycle.
+ * This texture may be the current active texture of the cycle.
+ * May create a new texture if all current textures in the cycle are bound.
+ *
+ * \param textureCycle a texture cycle to cycle
+ * \returns an unbound texture in the cycle
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC SDL_GpuTexture *SDLCALL SDL_CycleTexture(
+    SDL_GpuTextureCycle *textureCycle
+);
+
+/* Resource Sets */
+
+/**
+ * Adds a buffer to a resource set, returning the index of the buffer in the set.
+ * The resource set must have been created with type SDL_GPU_RESOURCESETTYPE_BUFFER.
+ *
+ * \param resourceSet a resource set object
+ * \param buffer a buffer
+ * \return the index of the buffer in the resource set
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC Uint32 SDL_AddBufferToResourceSet(
+    SDL_GpuResourceSet *resourceSet,
+    SDL_GpuBuffer *buffer
+);
+
+/**
+ * Adds a texture to resource set, returning the index of the texture in the set.
+ * The resource set must have been created with type SDL_GPU_RESOURCESETTYPE_SAMPLED_TEXTURE.
+ *
+ * \param resourceSet a resource set object
+ * \param texture a texture
+ * \return the index of the texture in the resource set
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC Uint32 SDL_AddSampledTextureToResourceSet(
+    SDL_GpuResourceSet *resourceSet,
+    SDL_GpuTexture *texture,
+    SDL_GpuSampler *sampler
+);
+
+/**
+ * Adds a texture to resource set, returning the index of the texture in the set.
+ * The resource set must have been created with type SDL_GPU_RESOURCESETTYPE_STORAGE_TEXTURE.
+ *
+ * \param resourceSet a resource set object
+ * \param texture a texture
+ * \return the index of the texture in the resource set
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC Uint32 SDL_AddStorageTextureToResourceSet(
+    SDL_GpuResourceSet *resourceSet,
+    SDL_GpuTexture *texture
+);
+
+/**
+ * Removes the resource at the given index from the set.
+ * It is recommended to call this before destroying the resource.
+ * If you reference an index that contains a destroyed resource, bad things will happen!
+ *
+ * \param resourceSet
+ * \param resourceSetIndex
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC void SDL_RemoveFromResourceSet(
+    SDL_GpuResourceSet *resourceSet,
+    Uint32 resourceSetIndex
+);
 
 /* Graphics State */
 
@@ -1521,7 +1753,6 @@ extern DECLSPEC void SDLCALL SDL_GpuEndComputePass(
  *
  * \param device a GPU context
  * \param transferBuffer a transfer buffer
- * \param cycle if SDL_TRUE, cycles the transfer buffer if it is bound
  * \param ppData where to store the address of the mapped transfer buffer memory
  *
  * \since This function is available since SDL 3.x.x
@@ -1529,7 +1760,6 @@ extern DECLSPEC void SDLCALL SDL_GpuEndComputePass(
 extern DECLSPEC void SDLCALL SDL_GpuMapTransferBuffer(
     SDL_GpuDevice *device,
     SDL_GpuTransferBuffer *transferBuffer,
-    SDL_bool cycle,
     void **ppData
 );
 
@@ -1553,7 +1783,6 @@ extern DECLSPEC void SDLCALL SDL_GpuUnmapTransferBuffer(
  * \param data a pointer to data to copy into the transfer buffer
  * \param transferBuffer a transfer buffer
  * \param copyParams a struct containing parameters specifying copy offsets and size
- * \param cycle if SDL_TRUE, cycles the transfer buffer if it is bound, otherwise overwrites the data.
  *
  * \since This function is available since SDL 3.x.x
  */
@@ -1561,8 +1790,7 @@ extern DECLSPEC void SDLCALL SDL_GpuSetTransferData(
 	SDL_GpuDevice *device,
 	void* data,
 	SDL_GpuTransferBuffer *transferBuffer,
-	SDL_GpuBufferCopy *copyParams,
-	SDL_bool cycle
+	SDL_GpuBufferCopy *copyParams
 );
 
 /**
@@ -1611,7 +1839,6 @@ extern DECLSPEC SDL_GpuCopyPass *SDLCALL SDL_GpuBeginCopyPass(
  * \param transferBuffer a transfer buffer
  * \param textureRegion a struct containing parameters specifying the texture region to upload data to
  * \param copyParams a struct containing parameters specifying buffer offset, stride, and height
- * \param cycle if SDL_TRUE, cycles the texture if the texture slice is bound, otherwise overwrites the data.
  *
  * \since This function is available since SDL 3.x.x
  */
@@ -1619,8 +1846,7 @@ extern DECLSPEC void SDLCALL SDL_GpuUploadToTexture(
 	SDL_GpuCopyPass *copyPass,
 	SDL_GpuTransferBuffer *transferBuffer,
 	SDL_GpuTextureRegion *textureRegion,
-	SDL_GpuBufferImageCopy *copyParams,
-	SDL_bool cycle
+	SDL_GpuBufferImageCopy *copyParams
 );
 
 /* Uploads data from a TransferBuffer to a GpuBuffer. */
@@ -1634,7 +1860,6 @@ extern DECLSPEC void SDLCALL SDL_GpuUploadToTexture(
  * \param transferBuffer a transfer buffer
  * \param gpuBuffer a buffer
  * \param copyParams a struct containing offsets and length
- * \param cycle if SDL_TRUE, cycles the buffer if it is bound, otherwise overwrites the data.
  *
  * \since This function is available since SDL 3.x.x
  */
@@ -1642,8 +1867,7 @@ extern DECLSPEC void SDLCALL SDL_GpuUploadToBuffer(
 	SDL_GpuCopyPass *copyPass,
 	SDL_GpuTransferBuffer *transferBuffer,
 	SDL_GpuBuffer *gpuBuffer,
-	SDL_GpuBufferCopy *copyParams,
-	SDL_bool cycle
+	SDL_GpuBufferCopy *copyParams
 );
 
 /**
@@ -1654,15 +1878,13 @@ extern DECLSPEC void SDLCALL SDL_GpuUploadToBuffer(
  * \param copyPass a copy pass handle
  * \param source a source texture region
  * \param destination must be the same dimensions as the source region
- * \param cycle if SDL_TRUE, cycles the destination texture if the destination texture slice is bound, otherwise overwrites the data.
  *
  * \since This function is available since SDL 3.x.x
  */
 extern DECLSPEC void SDLCALL SDL_GpuCopyTextureToTexture(
 	SDL_GpuCopyPass *copyPass,
 	SDL_GpuTextureRegion *source,
-	SDL_GpuTextureRegion *destination,
-	SDL_bool cycle
+	SDL_GpuTextureRegion *destination
 );
 
 /* Copies data from a buffer to a buffer. */
@@ -1676,7 +1898,6 @@ extern DECLSPEC void SDLCALL SDL_GpuCopyTextureToTexture(
  * \param source the buffer to copy from
  * \param destination the buffer to copy to
  * \param copyParams a struct containing offset and length data
- * \param cycle if SDL_TRUE, cycles the destination buffer if it is bound, otherwise overwrites the data.
  *
  * \since This function is available since SDL 3.x.x
  */
@@ -1684,8 +1905,7 @@ extern DECLSPEC void SDLCALL SDL_GpuCopyBufferToBuffer(
 	SDL_GpuCopyPass *copyPass,
 	SDL_GpuBuffer *source,
 	SDL_GpuBuffer *destination,
-	SDL_GpuBufferCopy *copyParams,
-	SDL_bool cycle
+	SDL_GpuBufferCopy *copyParams
 );
 
 /**
@@ -1756,7 +1976,6 @@ extern DECLSPEC void SDLCALL SDL_GpuEndCopyPass(
  * \param source the texture region to copy from
  * \param destination the texture region to copy to
  * \param filterMode the filter mode that will be used when blitting
- * \param cycle if SDL_TRUE, cycles the destination texture if the destination texture slice is bound, otherwise overwrites the data.
  *
  *
  * \since This function is available since SDL 3.x.x
@@ -1765,8 +1984,7 @@ extern DECLSPEC void SDLCALL SDL_GpuBlit(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_GpuTextureRegion *source,
     SDL_GpuTextureRegion *destination,
-    SDL_GpuFilter filterMode,
-    SDL_bool cycle
+    SDL_GpuFilter filterMode
 );
 
 /* Submission/Presentation */
@@ -1860,6 +2078,18 @@ extern DECLSPEC SDL_GpuTextureFormat SDLCALL SDL_GpuGetSwapchainFormat(
 extern DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsPresentMode(
 	SDL_GpuDevice *device,
 	SDL_GpuPresentMode presentMode
+);
+
+/**
+ * Obtains whether or not the GPU backend supports a bindless workflow.
+ *
+ * \param device a GPU context
+ * \returns SDL_TRUE if supported, SDL_FALSE if unsupported
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsBindless(
+    SDL_GpuDevice *device
 );
 
 /**
