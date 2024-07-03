@@ -109,6 +109,9 @@ static const SDL_GpuDriver *backends[] = {
 #if SDL_GPU_METAL
     &MetalDriver,
 #endif
+#if SDL_GPU_D3D12
+    &D3D12Driver,
+#endif
 #if SDL_GPU_VULKAN
     &VulkanDriver,
 #endif
