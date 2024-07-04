@@ -21,21 +21,160 @@
 
 #include "SDL_internal.h"
 
-#include <stdbool.h>
-
 #if SDL_GPU_D3D12
+
+#define D3D12_NO_HELPERS
+#define CINTERFACE
+#define COBJMACROS
+
+#include <d3d12.h>
+#include <d3dcompiler.h>
+#include <dxgi.h>
+#include <dxgi1_6.h>
+#include <dxgidebug.h>
 
 #include "../SDL_gpu_driver.h"
 
+/* Macros */
+
+#define D3DCOMPILER_API STDMETHODCALLTYPE
+
+#define ERROR_CHECK(msg)                                     \
+    if (FAILED(res)) {                                       \
+        D3D12_INTERNAL_LogError(renderer->device, msg, res); \
+    }
+
+#define ERROR_CHECK_RETURN(msg, ret)                         \
+    if (FAILED(res)) {                                       \
+        D3D12_INTERNAL_LogError(renderer->device, msg, res); \
+        return ret;                                          \
+    }
+
 /* Defines */
+#if defined(_WIN32)
+#define D3D12_DLL     "d3d12.dll"
+#define DXGI_DLL      "dxgi.dll"
+#define DXGIDEBUG_DLL "dxgidebug.dll"
+#elif defined(__APPLE__)
+#define D3D12_DLL       "libdxvk_d3d12.dylib"
+#define DXGI_DLL        "libdxvk_dxgi.dylib"
+#define DXGIDEBUG_DLL   "libdxvk_dxgidebug.dylib"
+#define D3DCOMPILER_DLL "libvkd3d-utils.1.dylib"
+#else
+#define D3D12_DLL       "libdxvk_d3d12.so"
+#define DXGI_DLL        "libdxvk_dxgi.so"
+#define DXGIDEBUG_DLL   "libdxvk_dxgidebug.so"
+#define D3DCOMPILER_DLL "libvkd3d-utils.so.1"
+#endif
+
+#define D3D12_CREATE_DEVICE_FUNC      "D3D12CreateDevice"
+#define CREATE_DXGI_FACTORY1_FUNC     "CreateDXGIFactory1"
+#define D3DCOMPILE_FUNC               "D3DCompile"
+#define DXGI_GET_DEBUG_INTERFACE_FUNC "DXGIGetDebugInterface"
+#define WINDOW_PROPERTY_DATA          "SDL_GpuD3D12WindowPropertyData"
+#define D3D_FEATURE_LEVEL_CHOICE      D3D_FEATURE_LEVEL_11_1
+#define D3D_FEATURE_LEVEL_CHOICE_STR  "11_1"
+
+// #define SDL_GPU_SHADERSTAGE_COMPUTE 2
+
+#ifdef _WIN32
+#define HRESULT_FMT "(0x%08lX)"
+#else
+#define HRESULT_FMT "(0x%08X)"
+#endif
+
+/* Function Pointer Signatures */
+typedef HRESULT(WINAPI *PFN_CREATE_DXGI_FACTORY1)(const GUID *riid, void **ppFactory);
+typedef HRESULT(WINAPI *PFN_DXGI_GET_DEBUG_INTERFACE)(const GUID *riid, void **ppDebug);
+typedef HRESULT(D3DCOMPILER_API *PFN_D3DCOMPILE)(LPCVOID pSrcData, SIZE_T SrcDataSize, LPCSTR pSourceName, const D3D_SHADER_MACRO *pDefines, ID3DInclude *pInclude, LPCSTR pEntrypoint, LPCSTR pTarget, UINT Flags1, UINT Flags2, ID3DBlob **ppCode, ID3DBlob **ppErrorMsgs);
+
+/* IIDs (from https://www.magnumdb.com/) */
+static const IID D3D_IID_IDXGIFactory1 = { 0x770aae78, 0xf26f, 0x4dba, { 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87 } };
+static const IID D3D_IID_IDXGIFactory4 = { 0x1bc6ea02, 0xef36, 0x464f, { 0xbf, 0x0c, 0x21, 0xca, 0x39, 0xe5, 0x16, 0x8a } };
+static const IID D3D_IID_IDXGIFactory5 = { 0x7632e1f5, 0xee65, 0x4dca, { 0x87, 0xfd, 0x84, 0xcd, 0x75, 0xf8, 0x83, 0x8d } };
+static const IID D3D_IID_IDXGIFactory6 = { 0xc1b6694f, 0xff09, 0x44a9, { 0xb0, 0x3c, 0x77, 0x90, 0x0a, 0x0a, 0x1d, 0x17 } };
+static const IID D3D_IID_IDXGIAdapter1 = { 0x29038f61, 0x3839, 0x4626, { 0x91, 0xfd, 0x08, 0x68, 0x79, 0x01, 0x1a, 0x05 } };
+// static const IID D3D_IID_IDXGISwapChain3 = { 0x94d99bdb, 0xf1f8, 0x4ab0, { 0xb2, 0x36, 0x7d, 0xa0, 0x17, 0x0e, 0xda, 0xb1 } };
+// static const IID D3D_IID_ID3DUserDefinedAnnotation = { 0xb2daad8b, 0x03d4, 0x4dbf, { 0x95, 0xeb, 0x32, 0xab, 0x4b, 0x63, 0xd0, 0xab } };
+static const IID D3D_IID_IDXGIDebug = { 0x119e7452, 0xde9e, 0x40fe, { 0x88, 0x06, 0x88, 0xf9, 0x0c, 0x12, 0xb4, 0x41 } };
+
+// static const IID D3D_IID_IDXGIInfoQueue = { 0xd67441c7, 0x672a, 0x476f, { 0x9e, 0x82, 0xcd, 0x55, 0xb4, 0x49, 0x49, 0xce } };
+
+// static const GUID D3D_IID_D3DDebugObjectName = { 0x429b8c22, 0x9188, 0x4b0c, { 0x87, 0x42, 0xac, 0xb0, 0xbf, 0x85, 0xc2, 0x00 } };
+// static const GUID D3D_IID_DXGI_DEBUG_ALL = { 0xe48ae283, 0xda80, 0x490b, { 0x87, 0xe6, 0x43, 0xe9, 0xa9, 0xcf, 0xda, 0x08 } };
+
+static const IID D3D_IID_ID3D12Device = { 0x189819f1, 0x1db6, 0x4b57, { 0xbe, 0x54, 0x18, 0x21, 0x33, 0x9b, 0x85, 0xf7 } };
 
 /* Structures */
 typedef struct D3D12Renderer D3D12Renderer;
 
 struct D3D12Renderer
 {
-    int removeme;
+    void *dxgidebug_dll;
+    IDXGIDebug *dxgiDebug;
+    void *d3dcompiler_dll;
+    PFN_D3DCOMPILE D3DCompile_func;
+    void *dxgi_dll;
+    IDXGIFactory1 *factory;
+    SDL_bool supportsFlipDiscard;
+    BOOL supportsTearing;
+    IDXGIAdapter1 *adapter;
+    void *d3d12_dll;
+    ID3D12Device *device;
 };
+
+/* Logging */
+
+static void D3D12_INTERNAL_LogError(
+    ID3D12Device *device,
+    const char *msg,
+    HRESULT res)
+{
+#define MAX_ERROR_LEN 1024 /* FIXME: Arbitrary! */
+
+    /* Buffer for text, ensure space for \0 terminator after buffer */
+    char wszMsgBuff[MAX_ERROR_LEN + 1];
+    DWORD dwChars; /* Number of chars returned. */
+
+    if (res == DXGI_ERROR_DEVICE_REMOVED) {
+        if (device) {
+            res = ID3D12Device_GetDeviceRemovedReason(device);
+        }
+    }
+
+    /* Try to get the message from the system errors. */
+    dwChars = FormatMessage(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        res,
+        0,
+        wszMsgBuff,
+        MAX_ERROR_LEN,
+        NULL);
+
+    /* No message? Screw it, just post the code. */
+    if (dwChars == 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s! Error Code: " HRESULT_FMT, msg, res);
+        return;
+    }
+
+    /* Ensure valid range */
+    dwChars = SDL_min(dwChars, MAX_ERROR_LEN);
+
+    /* Trim whitespace from tail of message */
+    while (dwChars > 0) {
+        if (wszMsgBuff[dwChars - 1] <= ' ') {
+            dwChars--;
+        } else {
+            break;
+        }
+    }
+
+    /* Ensure null-terminated string */
+    wszMsgBuff[dwChars] = '\0';
+
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s! Error Code: %s " HRESULT_FMT, msg, wszMsgBuff, res);
+}
 
 void D3D12_DestroyDevice(SDL_GpuDevice *device) { SDL_assert(SDL_FALSE); }
 
@@ -431,15 +570,346 @@ SDL_GpuSampleCount D3D12_GetBestSampleCount(
 
 static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
 {
-    // todo, check like D3D11_PrepareDriver
-    SDL_assert(SDL_FALSE);
+    void *d3d12_dll, *dxgi_dll, *d3dcompiler_dll;
+    PFN_D3D12_CREATE_DEVICE D3D12CreateDeviceFunc;
+    PFN_CREATE_DXGI_FACTORY1 CreateDXGIFactoryFunc;
+    PFN_D3DCOMPILE D3DCompileFunc;
+    HRESULT res;
+    ID3D12Device *device;
+
+    IDXGIFactory1 *factory;
+    IDXGIFactory6 *factory6;
+    IDXGIAdapter1 *adapter;
+
+    /* Can we load D3D12? */
+
+    d3d12_dll = SDL_LoadObject(D3D12_DLL);
+    if (d3d12_dll == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not find " D3D12_DLL);
+        return SDL_FALSE;
+    }
+
+    D3D12CreateDeviceFunc = (PFN_D3D12_CREATE_DEVICE)SDL_LoadFunction(
+        d3d12_dll,
+        D3D12_CREATE_DEVICE_FUNC);
+    if (D3D12CreateDeviceFunc == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not find function " D3D12_CREATE_DEVICE_FUNC " in " D3D12_DLL);
+        SDL_UnloadObject(d3d12_dll);
+        return SDL_FALSE;
+    }
+
+    /* Can we load DXGI? */
+
+    dxgi_dll = SDL_LoadObject(DXGI_DLL);
+    if (dxgi_dll == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not find " DXGI_DLL);
+        return SDL_FALSE;
+    }
+
+    CreateDXGIFactoryFunc = (PFN_CREATE_DXGI_FACTORY1)SDL_LoadFunction(
+        dxgi_dll,
+        CREATE_DXGI_FACTORY1_FUNC);
+    if (CreateDXGIFactoryFunc == NULL) {
+        SDL_UnloadObject(dxgi_dll);
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not find function " CREATE_DXGI_FACTORY1_FUNC " in " DXGI_DLL);
+        return SDL_FALSE;
+    }
+
+    /* Can we create a device? */
+
+    /* Create the DXGI factory */
+    res = CreateDXGIFactoryFunc(
+        &D3D_IID_IDXGIFactory1,
+        (void **)&factory);
+    if (FAILED(res)) {
+        SDL_UnloadObject(d3d12_dll);
+        SDL_UnloadObject(dxgi_dll);
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not create DXGIFactory");
+        return SDL_FALSE;
+    }
+
+    res = IDXGIAdapter1_QueryInterface(
+        factory,
+        &D3D_IID_IDXGIFactory6,
+        (void **)&factory6);
+    if (SUCCEEDED(res)) {
+        res = IDXGIFactory6_EnumAdapterByGpuPreference(
+            factory6,
+            0,
+            DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+            &D3D_IID_IDXGIAdapter1,
+            (void **)&adapter);
+        IDXGIFactory6_Release(factory6);
+    } else {
+        res = IDXGIFactory1_EnumAdapters1(
+            factory,
+            0,
+            &adapter);
+    }
+    if (FAILED(res)) {
+        IDXGIFactory1_Release(factory);
+        SDL_UnloadObject(d3d12_dll);
+        SDL_UnloadObject(dxgi_dll);
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Failed to find adapter for D3D12Device");
+        return SDL_FALSE;
+    }
+
+    res = D3D12CreateDeviceFunc(
+        (IUnknown *)adapter,
+        D3D_FEATURE_LEVEL_CHOICE,
+        &D3D_IID_ID3D12Device,
+        (void **)&device);
+
+    if (SUCCEEDED(res)) {
+        ID3D12Device_Release(device);
+    }
+    IDXGIAdapter1_Release(adapter);
+    IDXGIFactory1_Release(factory);
+
+    SDL_UnloadObject(d3d12_dll);
+    SDL_UnloadObject(dxgi_dll);
+
+    if (FAILED(res)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not create D3D12Device with feature level " D3D_FEATURE_LEVEL_CHOICE_STR);
+        return SDL_FALSE;
+    }
+
+    /* Can we load D3DCompiler? */
+
+    d3dcompiler_dll = SDL_LoadObject(D3DCOMPILER_DLL);
+    if (d3dcompiler_dll == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not find " D3DCOMPILER_DLL);
+        return SDL_FALSE;
+    }
+
+    D3DCompileFunc = (PFN_D3DCOMPILE)SDL_LoadFunction(
+        d3dcompiler_dll,
+        D3DCOMPILE_FUNC);
+    SDL_UnloadObject(d3dcompiler_dll); /* We're not going to call this function, so we can just unload now. */
+    if (D3DCompileFunc == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not find function D3DCompile in " D3DCOMPILER_DLL);
+        return SDL_FALSE;
+    }
+
     return SDL_TRUE;
+}
+
+static void D3D12_INTERNAL_TryInitializeDXGIDebug(D3D12Renderer *renderer)
+{
+    PFN_DXGI_GET_DEBUG_INTERFACE DXGIGetDebugInterfaceFunc;
+    HRESULT res;
+
+    renderer->dxgidebug_dll = SDL_LoadObject(DXGIDEBUG_DLL);
+    if (renderer->dxgidebug_dll == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not find " DXGIDEBUG_DLL);
+        return;
+    }
+
+    DXGIGetDebugInterfaceFunc = (PFN_DXGI_GET_DEBUG_INTERFACE)SDL_LoadFunction(
+        renderer->dxgidebug_dll,
+        DXGI_GET_DEBUG_INTERFACE_FUNC);
+    if (DXGIGetDebugInterfaceFunc == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " DXGI_GET_DEBUG_INTERFACE_FUNC);
+        return;
+    }
+
+    res = DXGIGetDebugInterfaceFunc(&D3D_IID_IDXGIDebug, (void **)&renderer->dxgiDebug);
+    if (FAILED(res)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not get IDXGIDebug interface");
+    }
+
+    /*
+    res = DXGIGetDebugInterfaceFunc(&D3D_IID_IDXGIInfoQueue, (void **)&renderer->dxgiInfoQueue);
+    if (FAILED(res)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not get IDXGIInfoQueue interface");
+    }
+    */
+}
+
+static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer *renderer)
+{
+    if (renderer->device) {
+        ID3D12Device_Release(renderer->device);
+        renderer->device = NULL;
+    }
+    if (renderer->adapter) {
+        IDXGIAdapter1_Release(renderer->adapter);
+        renderer->adapter = NULL;
+    }
+    if (renderer->factory) {
+        IDXGIFactory1_Release(renderer->factory);
+        renderer->factory = NULL;
+    }
+    if (renderer->dxgiDebug) {
+        IDXGIDebug_Release(renderer->dxgiDebug);
+        renderer->dxgiDebug = NULL;
+    }
+    if (renderer->d3d12_dll) {
+        SDL_UnloadObject(renderer->d3d12_dll);
+        renderer->d3d12_dll = NULL;
+    }
+    if (renderer->dxgi_dll) {
+        SDL_UnloadObject(renderer->dxgi_dll);
+        renderer->dxgi_dll = NULL;
+    }
+    if (renderer->d3dcompiler_dll) {
+        SDL_UnloadObject(renderer->d3dcompiler_dll);
+        renderer->d3dcompiler_dll = NULL;
+    }
+    if (renderer->dxgidebug_dll) {
+        SDL_UnloadObject(renderer->dxgidebug_dll);
+        renderer->dxgidebug_dll = NULL;
+    }
+    renderer->D3DCompile_func = NULL;
 }
 
 static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
 {
     SDL_GpuDevice *result;
     D3D12Renderer *renderer;
+    PFN_CREATE_DXGI_FACTORY1 CreateDXGIFactoryFunc;
+    HRESULT res;
+    IDXGIFactory4 *factory4;
+    IDXGIFactory5 *factory5;
+    IDXGIFactory6 *factory6;
+    DXGI_ADAPTER_DESC1 adapterDesc;
+    PFN_D3D12_CREATE_DEVICE D3D12CreateDeviceFunc;
+
+    renderer = (D3D12Renderer *)SDL_malloc(sizeof(D3D12Renderer));
+
+    /* Load the D3DCompiler library */
+    renderer->d3dcompiler_dll = SDL_LoadObject(D3DCOMPILER_DLL);
+    if (renderer->d3dcompiler_dll == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not find " D3DCOMPILER_DLL);
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        return NULL;
+    }
+
+    renderer->D3DCompile_func = (PFN_D3DCOMPILE)SDL_LoadFunction(renderer->d3dcompiler_dll, D3DCOMPILE_FUNC);
+    if (renderer->D3DCompile_func == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " D3DCOMPILE_FUNC);
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        return NULL;
+    }
+
+    /* Load the DXGI library */
+    renderer->dxgi_dll = SDL_LoadObject(DXGI_DLL);
+    if (renderer->dxgi_dll == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not find " DXGI_DLL);
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        return NULL;
+    }
+
+    /* Initialize the DXGI debug layer, if applicable */
+    if (debugMode) {
+        D3D12_INTERNAL_TryInitializeDXGIDebug(renderer);
+    }
+
+    /* Load the CreateDXGIFactory1 function */
+    CreateDXGIFactoryFunc = (PFN_CREATE_DXGI_FACTORY1)SDL_LoadFunction(
+        renderer->dxgi_dll,
+        CREATE_DXGI_FACTORY1_FUNC);
+    if (CreateDXGIFactoryFunc == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " CREATE_DXGI_FACTORY1_FUNC);
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        return NULL;
+    }
+
+    /* Create the DXGI factory */
+    res = CreateDXGIFactoryFunc(
+        &D3D_IID_IDXGIFactory1,
+        (void **)&renderer->factory);
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        ERROR_CHECK_RETURN("Could not create DXGIFactory", NULL);
+    }
+
+    /* Check for flip-model discard support (supported on Windows 10+) */
+    res = IDXGIFactory1_QueryInterface(
+        renderer->factory,
+        &D3D_IID_IDXGIFactory4,
+        (void **)&factory4);
+    if (SUCCEEDED(res)) {
+        renderer->supportsFlipDiscard = 1;
+        IDXGIFactory4_Release(factory4);
+    }
+
+    /* Check for explicit tearing support */
+    res = IDXGIFactory1_QueryInterface(
+        renderer->factory,
+        &D3D_IID_IDXGIFactory5,
+        (void **)&factory5);
+    if (SUCCEEDED(res)) {
+        res = IDXGIFactory5_CheckFeatureSupport(
+            factory5,
+            DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+            &renderer->supportsTearing,
+            sizeof(renderer->supportsTearing));
+        if (FAILED(res)) {
+            renderer->supportsTearing = FALSE;
+        }
+        IDXGIFactory5_Release(factory5);
+    }
+
+    /* Select the appropriate device for rendering */
+    res = IDXGIAdapter1_QueryInterface(
+        renderer->factory,
+        &D3D_IID_IDXGIFactory6,
+        (void **)&factory6);
+    if (SUCCEEDED(res)) {
+        res = IDXGIFactory6_EnumAdapterByGpuPreference(
+            factory6,
+            0,
+            DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+            &D3D_IID_IDXGIAdapter1,
+            (void **)&renderer->adapter);
+        IDXGIFactory6_Release(factory6);
+    } else {
+        res = IDXGIFactory1_EnumAdapters1(
+            renderer->factory,
+            0,
+            &renderer->adapter);
+    }
+
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        ERROR_CHECK_RETURN("Could not find adapter for D3D12Device", NULL);
+    }
+
+    /* Get information about the selected adapter. Used for logging info. */
+    res = IDXGIAdapter1_GetDesc1(renderer->adapter, &adapterDesc);
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        ERROR_CHECK_RETURN("Could not get adapter description", NULL);
+    }
+
+    /* Load the D3D library */
+    renderer->d3d12_dll = SDL_LoadObject(D3D12_DLL);
+    if (renderer->d3d12_dll == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not find " D3D12_DLL);
+        return NULL;
+    }
+
+    /* Load the CreateDevice function */
+    D3D12CreateDeviceFunc = (PFN_D3D12_CREATE_DEVICE)SDL_LoadFunction(
+        renderer->d3d12_dll,
+        D3D12_CREATE_DEVICE_FUNC);
+    if (D3D12CreateDeviceFunc == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " D3D12_CREATE_DEVICE_FUNC);
+        return NULL;
+    }
+
+    /* Create the D3D12Device */
+    res = D3D12CreateDeviceFunc(
+        (IUnknown *)renderer->adapter,
+        D3D_FEATURE_LEVEL_CHOICE,
+        &D3D_IID_ID3D12Device,
+        (void **)&renderer->device);
+
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        ERROR_CHECK_RETURN("Could not create D3D12Device", NULL);
+    }
 
     /* Create the SDL_Gpu Device */
     result = (SDL_GpuDevice *)SDL_malloc(sizeof(SDL_GpuDevice));
