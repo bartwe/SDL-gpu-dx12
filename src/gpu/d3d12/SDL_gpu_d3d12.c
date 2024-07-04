@@ -105,8 +105,40 @@ static const IID D3D_IID_IDXGIDebug = { 0x119e7452, 0xde9e, 0x40fe, { 0x88, 0x06
 
 static const IID D3D_IID_ID3D12Device = { 0x189819f1, 0x1db6, 0x4b57, { 0xbe, 0x54, 0x18, 0x21, 0x33, 0x9b, 0x85, 0xf7 } };
 
+
+/* Conversions */
+
+static DXGI_FORMAT SwapchainCompositionToTextureFormat[] = {
+    DXGI_FORMAT_B8G8R8A8_UNORM,                /* SDR */
+    DXGI_FORMAT_B8G8R8A8_UNORM, /* SDR_SRGB */ /* NOTE: The RTV uses the sRGB format */
+    DXGI_FORMAT_R16G16B16A16_FLOAT,            /* HDR */
+    DXGI_FORMAT_R10G10B10A2_UNORM,             /* HDR_ADVANCED*/
+};
+
+static DXGI_COLOR_SPACE_TYPE SwapchainCompositionToColorSpace[] = {
+    DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709,   /* SDR */
+    DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709,   /* SDR_SRGB */
+    DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709,   /* HDR */
+    DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 /* HDR_ADVANCED */
+};
+
 /* Structures */
 typedef struct D3D12Renderer D3D12Renderer;
+
+
+typedef struct D3D12WindowData
+{
+    SDL_Window *window;
+    IDXGISwapChain *swapchain;
+    // D3D12Texture texture;
+    // D3D12TextureContainer textureContainer;
+    SDL_GpuPresentMode presentMode;
+    SDL_GpuSwapchainComposition swapchainComposition;
+    DXGI_FORMAT swapchainFormat;
+    DXGI_COLOR_SPACE_TYPE swapchainColorSpace;
+    // D3D12Fence *inFlightFences[MAX_FRAMES_IN_FLIGHT];
+    Uint32 frameCounter;
+} D3D12WindowData;
 
 struct D3D12Renderer
 {
@@ -121,6 +153,10 @@ struct D3D12Renderer
     IDXGIAdapter1 *adapter;
     void *d3d12_dll;
     ID3D12Device *device;
+    SDL_Mutex *windowLock;
+    size_t claimedWindowCount;
+    size_t claimedWindowCapacity;
+    D3D12WindowData **claimedWindows;
 };
 
 /* Logging */
@@ -503,11 +539,204 @@ SDL_bool D3D12_SupportsPresentMode(
     SDL_Window *window,
     SDL_GpuPresentMode presentMode) { SDL_assert(SDL_FALSE); }
 
+static D3D12WindowData *D3D12_INTERNAL_FetchWindowData(
+    SDL_Window *window)
+{
+    SDL_PropertiesID properties = SDL_GetWindowProperties(window);
+    return (D3D12WindowData *)SDL_GetProperty(properties, WINDOW_PROPERTY_DATA, NULL);
+}
+
+static SDL_bool D3D12_INTERNAL_CreateSwapchain(
+    D3D12Renderer *renderer,
+    D3D12WindowData *windowData,
+    SDL_GpuSwapchainComposition swapchainComposition,
+    SDL_GpuPresentMode presentMode)
+{
+    HWND dxgiHandle;
+    int width, height;
+    Uint32 i;
+    DXGI_SWAP_CHAIN_DESC swapchainDesc;
+    DXGI_FORMAT swapchainFormat;
+    IDXGIFactory1 *pParent;
+    IDXGISwapChain *swapchain;
+    IDXGISwapChain3 *swapchain3;
+    Uint32 colorSpaceSupport;
+    HRESULT res;
+
+    /* Get the DXGI handle */
+#ifdef _WIN32
+    dxgiHandle = (HWND)SDL_GetProperty(SDL_GetWindowProperties(windowData->window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+#else
+    dxgiHandle = (HWND)windowData->window;
+#endif
+
+    /* Get the window size */
+    SDL_GetWindowSize(windowData->window, &width, &height);
+
+    swapchainFormat = SwapchainCompositionToTextureFormat[swapchainComposition];
+
+    /* Initialize the swapchain buffer descriptor */
+    swapchainDesc.BufferDesc.Width = 0;
+    swapchainDesc.BufferDesc.Height = 0;
+    swapchainDesc.BufferDesc.RefreshRate.Numerator = 0;
+    swapchainDesc.BufferDesc.RefreshRate.Denominator = 0;
+    swapchainDesc.BufferDesc.Format = swapchainFormat;
+    swapchainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    swapchainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+
+    /* Initialize the rest of the swapchain descriptor */
+    swapchainDesc.SampleDesc.Count = 1;
+    swapchainDesc.SampleDesc.Quality = 0;
+    swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
+    swapchainDesc.BufferCount = 2;
+    swapchainDesc.OutputWindow = dxgiHandle;
+    swapchainDesc.Windowed = 1;
+
+    if (renderer->supportsTearing) {
+        swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+        /* We know this is supported because tearing support implies DXGI 1.5+ */
+        swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    } else {
+        swapchainDesc.Flags = 0;
+        swapchainDesc.SwapEffect = (renderer->supportsFlipDiscard ? DXGI_SWAP_EFFECT_FLIP_DISCARD : DXGI_SWAP_EFFECT_DISCARD);
+    }
+
+    /* Create the swapchain! */
+    res = IDXGIFactory1_CreateSwapChain(
+        (IDXGIFactory1 *)renderer->factory,
+        (IUnknown *)renderer->device,
+        &swapchainDesc,
+        &swapchain);
+    ERROR_CHECK_RETURN("Could not create swapchain", 0);
+
+    /*
+     * The swapchain's parent is a separate factory from the factory that
+     * we used to create the swapchain, and only that parent can be used to
+     * set the window association. Trying to set an association on our factory
+     * will silently fail and doesn't even verify arguments or return errors.
+     * See https://gamedev.net/forums/topic/634235-dxgidisabling-altenter/4999955/
+     */
+    res = IDXGISwapChain_GetParent(
+        swapchain,
+        &D3D_IID_IDXGIFactory1,
+        (void **)&pParent);
+    if (FAILED(res)) {
+        SDL_LogWarn(
+            SDL_LOG_CATEGORY_APPLICATION,
+            "Could not get swapchain parent! Error Code: " HRESULT_FMT,
+            res);
+    } else {
+        /* Disable DXGI window crap */
+        res = IDXGIFactory1_MakeWindowAssociation(
+            pParent,
+            dxgiHandle,
+            DXGI_MWA_NO_WINDOW_CHANGES);
+        if (FAILED(res)) {
+            SDL_LogWarn(
+                SDL_LOG_CATEGORY_APPLICATION,
+                "MakeWindowAssociation failed! Error Code: " HRESULT_FMT,
+                res);
+        }
+
+        /* We're done with the parent now */
+        IDXGIFactory1_Release(pParent);
+    }
+    /* Initialize the swapchain data */
+    windowData->swapchain = swapchain;
+    windowData->presentMode = presentMode;
+    windowData->swapchainComposition = swapchainComposition;
+    windowData->swapchainFormat = swapchainFormat;
+    windowData->swapchainColorSpace = SwapchainCompositionToColorSpace[swapchainComposition];
+    windowData->frameCounter = 0;
+
+//    for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
+//        windowData->inFlightFences[i] = NULL;
+//    }
+
+    if (SUCCEEDED(IDXGISwapChain3_QueryInterface(
+            swapchain,
+            &D3D_IID_IDXGISwapChain3,
+            (void **)&swapchain3))) {
+        IDXGISwapChain3_CheckColorSpaceSupport(
+            swapchain3,
+            windowData->swapchainColorSpace,
+            &colorSpaceSupport);
+
+        if (!(colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Requested colorspace is unsupported!");
+            return SDL_FALSE;
+        }
+
+        IDXGISwapChain3_SetColorSpace1(
+            swapchain3,
+            windowData->swapchainColorSpace);
+
+        IDXGISwapChain3_Release(swapchain3);
+    } else {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "DXGI 1.4 not supported, cannot use colorspace other than SDL_GPU_COLORSPACE_NONLINEAR_SRGB!");
+        return SDL_FALSE;
+    }
+
+    /* If a you are using a FLIP model format you can't create the swapchain as DXGI_FORMAT_B8G8R8A8_UNORM_SRGB.
+     * You have to create the swapchain as DXGI_FORMAT_B8G8R8A8_UNORM and then set the render target view's format to DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
+     */
+    if (!D3D12_INTERNAL_InitializeSwapchainTexture(
+            renderer,
+            swapchain,
+            swapchainFormat,
+            (swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat,
+            &windowData->texture)) {
+        IDXGISwapChain_Release(swapchain);
+        return SDL_FALSE;
+    }
+
+    /* Initialize dummy container */
+    SDL_zerop(&windowData->textureContainer);
+    windowData->textureContainer.textures = SDL_calloc(1, sizeof(D3D12Texture *));
+
+    return SDL_TRUE;
+}
+
 SDL_bool D3D12_ClaimWindow(
     SDL_GpuRenderer *driverData,
     SDL_Window *window,
     SDL_GpuSwapchainComposition swapchainComposition,
-    SDL_GpuPresentMode presentMode) { SDL_assert(SDL_FALSE); }
+    SDL_GpuPresentMode presentMode)
+{
+    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+    D3D12WindowData *windowData = D3D12_INTERNAL_FetchWindowData(window);
+
+    if (windowData == NULL) {
+        windowData = (D3D12WindowData *)SDL_malloc(sizeof(D3D12WindowData));
+        windowData->window = window;
+
+        if (D3D12_INTERNAL_CreateSwapchain(renderer, windowData, swapchainComposition, presentMode)) {
+            SDL_SetProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA, windowData);
+
+            SDL_LockMutex(renderer->windowLock);
+
+            if (renderer->claimedWindowCount >= renderer->claimedWindowCapacity) {
+                renderer->claimedWindowCapacity *= 2;
+                renderer->claimedWindows = SDL_realloc(
+                    renderer->claimedWindows,
+                    renderer->claimedWindowCapacity * sizeof(D3D12WindowData *));
+            }
+            renderer->claimedWindows[renderer->claimedWindowCount] = windowData;
+            renderer->claimedWindowCount += 1;
+
+            SDL_UnlockMutex(renderer->windowLock);
+
+            return SDL_TRUE;
+        } else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create swapchain, failed to claim window!");
+            SDL_free(windowData);
+            return SDL_FALSE;
+        }
+    } else {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Window already claimed!");
+        return SDL_FALSE;
+    }
+}
 
 void D3D12_UnclaimWindow(
     SDL_GpuRenderer *driverData,
@@ -726,8 +955,16 @@ static void D3D12_INTERNAL_TryInitializeDXGIDebug(D3D12Renderer *renderer)
     */
 }
 
-static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer *renderer)
+static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer **rendererRef)
 {
+    D3D12Renderer *renderer;
+    renderer = *rendererRef;
+    if (!renderer)
+        return;
+    *rendererRef = NULL;
+    SDL_DestroyMutex(renderer->windowLock);
+    renderer->windowLock = NULL;
+
     if (renderer->device) {
         ID3D12Device_Release(renderer->device);
         renderer->device = NULL;
@@ -761,6 +998,7 @@ static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer *renderer)
         renderer->dxgidebug_dll = NULL;
     }
     renderer->D3DCompile_func = NULL;
+    SDL_free(renderer);
 }
 
 static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
@@ -781,14 +1019,14 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     renderer->d3dcompiler_dll = SDL_LoadObject(D3DCOMPILER_DLL);
     if (renderer->d3dcompiler_dll == NULL) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not find " D3DCOMPILER_DLL);
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         return NULL;
     }
 
     renderer->D3DCompile_func = (PFN_D3DCOMPILE)SDL_LoadFunction(renderer->d3dcompiler_dll, D3DCOMPILE_FUNC);
     if (renderer->D3DCompile_func == NULL) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " D3DCOMPILE_FUNC);
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         return NULL;
     }
 
@@ -796,13 +1034,13 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     renderer->dxgi_dll = SDL_LoadObject(DXGI_DLL);
     if (renderer->dxgi_dll == NULL) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not find " DXGI_DLL);
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         return NULL;
     }
 
     /* Initialize the DXGI debug layer, if applicable */
     if (debugMode) {
-        D3D12_INTERNAL_TryInitializeDXGIDebug(renderer);
+        D3D12_INTERNAL_TryInitializeDXGIDebug(&renderer);
     }
 
     /* Load the CreateDXGIFactory1 function */
@@ -811,7 +1049,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
         CREATE_DXGI_FACTORY1_FUNC);
     if (CreateDXGIFactoryFunc == NULL) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " CREATE_DXGI_FACTORY1_FUNC);
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         return NULL;
     }
 
@@ -820,7 +1058,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
         &D3D_IID_IDXGIFactory1,
         (void **)&renderer->factory);
     if (FAILED(res)) {
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         ERROR_CHECK_RETURN("Could not create DXGIFactory", NULL);
     }
 
@@ -872,20 +1110,21 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     }
 
     if (FAILED(res)) {
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         ERROR_CHECK_RETURN("Could not find adapter for D3D12Device", NULL);
     }
 
     /* Get information about the selected adapter. Used for logging info. */
     res = IDXGIAdapter1_GetDesc1(renderer->adapter, &adapterDesc);
     if (FAILED(res)) {
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         ERROR_CHECK_RETURN("Could not get adapter description", NULL);
     }
 
     /* Load the D3D library */
     renderer->d3d12_dll = SDL_LoadObject(D3D12_DLL);
     if (renderer->d3d12_dll == NULL) {
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not find " D3D12_DLL);
         return NULL;
     }
@@ -895,6 +1134,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
         renderer->d3d12_dll,
         D3D12_CREATE_DEVICE_FUNC);
     if (D3D12CreateDeviceFunc == NULL) {
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " D3D12_CREATE_DEVICE_FUNC);
         return NULL;
     }
@@ -907,9 +1147,11 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
         (void **)&renderer->device);
 
     if (FAILED(res)) {
-        D3D12_INTERNAL_DestroyRenderer(renderer);
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
         ERROR_CHECK_RETURN("Could not create D3D12Device", NULL);
     }
+
+    renderer->windowLock = SDL_CreateMutex();
 
     /* Create the SDL_Gpu Device */
     result = (SDL_GpuDevice *)SDL_malloc(sizeof(SDL_GpuDevice));
