@@ -94,7 +94,7 @@ static const IID D3D_IID_IDXGIFactory4 = { 0x1bc6ea02, 0xef36, 0x464f, { 0xbf, 0
 static const IID D3D_IID_IDXGIFactory5 = { 0x7632e1f5, 0xee65, 0x4dca, { 0x87, 0xfd, 0x84, 0xcd, 0x75, 0xf8, 0x83, 0x8d } };
 static const IID D3D_IID_IDXGIFactory6 = { 0xc1b6694f, 0xff09, 0x44a9, { 0xb0, 0x3c, 0x77, 0x90, 0x0a, 0x0a, 0x1d, 0x17 } };
 static const IID D3D_IID_IDXGIAdapter1 = { 0x29038f61, 0x3839, 0x4626, { 0x91, 0xfd, 0x08, 0x68, 0x79, 0x01, 0x1a, 0x05 } };
-// static const IID D3D_IID_IDXGISwapChain3 = { 0x94d99bdb, 0xf1f8, 0x4ab0, { 0xb2, 0x36, 0x7d, 0xa0, 0x17, 0x0e, 0xda, 0xb1 } };
+static const IID D3D_IID_IDXGISwapChain3 = { 0x94d99bdb, 0xf1f8, 0x4ab0, { 0xb2, 0x36, 0x7d, 0xa0, 0x17, 0x0e, 0xda, 0xb1 } };
 // static const IID D3D_IID_ID3DUserDefinedAnnotation = { 0xb2daad8b, 0x03d4, 0x4dbf, { 0x95, 0xeb, 0x32, 0xab, 0x4b, 0x63, 0xd0, 0xab } };
 static const IID D3D_IID_IDXGIDebug = { 0x119e7452, 0xde9e, 0x40fe, { 0x88, 0x06, 0x88, 0xf9, 0x0c, 0x12, 0xb4, 0x41 } };
 
@@ -105,6 +105,7 @@ static const IID D3D_IID_IDXGIDebug = { 0x119e7452, 0xde9e, 0x40fe, { 0x88, 0x06
 
 static const IID D3D_IID_ID3D12Device = { 0x189819f1, 0x1db6, 0x4b57, { 0xbe, 0x54, 0x18, 0x21, 0x33, 0x9b, 0x85, 0xf7 } };
 static const IID D3D_IID_ID3D12CommandQueue = { 0x0ec870a6, 0x5d7e, 0x4c22, { 0x8c, 0xfc, 0x5b, 0xaa, 0xe0, 0x76, 0x16, 0xed } };
+static const IID D3D_IID_ID3D12DescriptorHeap = { 0x8efb471d, 0x616c, 0x4f49, { 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51 } };
 
 /* Conversions */
 
@@ -128,7 +129,7 @@ typedef struct D3D12Renderer D3D12Renderer;
 typedef struct D3D12WindowData
 {
     SDL_Window *window;
-    IDXGISwapChain *swapchain;
+    IDXGISwapChain3 *swapchain;
     // D3D12Texture texture;
     // D3D12TextureContainer textureContainer;
     SDL_GpuPresentMode presentMode;
@@ -545,6 +546,140 @@ static D3D12WindowData *D3D12_INTERNAL_FetchWindowData(
     return (D3D12WindowData *)SDL_GetProperty(properties, WINDOW_PROPERTY_DATA, NULL);
 }
 
+static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
+    D3D12Renderer *renderer,
+    IDXGISwapChain *swapchain,
+    DXGI_FORMAT swapchainFormat,
+    DXGI_FORMAT rtvFormat,
+    D3D12Texture *pTexture)
+{
+    ID3D12Texture2D *swapchainTexture;
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc;
+    D3D12_TEXTURE2D_DESC textureDesc;
+    ID3D12ShaderResourceView *srv;
+    ID3D12RenderTargetView *rtv;
+    ID3D12UnorderedAccessView *uav;
+    HRESULT res;
+
+    /* Clear all the texture data */
+    SDL_zerop(pTexture);
+
+    ID3D12DescriptorHeap *rtvHeap;
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    rtvHeapDesc.NumDescriptors = bufferCount;
+    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    res = ID3D12Device_CreateDescriptorHeap(renderer->device, &rtvHeapDesc,
+                                            &D3D_IID_ID3D12DescriptorHeap,
+                                            (void **)&rtvHeap);
+    ERROR_CHECK_RETURN("Could not create descriptor heap!", 0);
+
+    
+    UINT rtvDescriptorSize = ID3D12Device_GetDescriptorHandleIncrementSize(renderer->device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    //CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    std::vector<ComPtr<ID3D12Resource>> renderTargets(bufferCount);
+    for (UINT i = 0; i < bufferCount; ++i) {
+        // Get a pointer to the back buffer
+        swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i]));
+
+        // Create an RTV for each buffer
+        device->CreateRenderTargetView(renderTargets[i].Get(), nullptr, rtvHandle);
+        rtvHandle.Offset(1, rtvDescriptorSize);
+    }
+
+    /* Grab the buffer from the swapchain */
+    res = IDXGISwapChain_GetBuffer(
+        swapchain,
+        0,
+        &D3D_IID_ID3D11Texture2D,
+        (void **)&swapchainTexture);
+    ERROR_CHECK_RETURN("Could not get buffer from swapchain!", 0);
+
+    /* Create the SRV for the swapchain */
+    srvDesc.Format = swapchainFormat;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+
+    res = ID3D11Device_CreateShaderResourceView(
+        renderer->device,
+        (ID3D11Resource *)swapchainTexture,
+        &srvDesc,
+        &srv);
+    if (FAILED(res)) {
+        ID3D11Texture2D_Release(swapchainTexture);
+        D3D11_INTERNAL_LogError(renderer->device, "Swapchain SRV creation failed", res);
+        return SDL_FALSE;
+    }
+
+    /* Create the RTV for the swapchain */
+    rtvDesc.Format = rtvFormat;
+    rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    rtvDesc.Texture2D.MipSlice = 0;
+
+    res = ID3D11Device_CreateRenderTargetView(
+        renderer->device,
+        (ID3D11Resource *)swapchainTexture,
+        &rtvDesc,
+        &rtv);
+    if (FAILED(res)) {
+        ID3D11ShaderResourceView_Release(srv);
+        ID3D11Texture2D_Release(swapchainTexture);
+        D3D11_INTERNAL_LogError(renderer->device, "Swapchain RTV creation failed", res);
+        return SDL_FALSE;
+    }
+
+    uavDesc.Format = swapchainFormat;
+    uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+    uavDesc.Texture2D.MipSlice = 0;
+
+    res = ID3D11Device_CreateUnorderedAccessView(
+        renderer->device,
+        (ID3D11Resource *)swapchainTexture,
+        &uavDesc,
+        &uav);
+    if (FAILED(res)) {
+        ID3D11ShaderResourceView_Release(srv);
+        ID3D11RenderTargetView_Release(rtv);
+        ID3D11Texture2D_Release(swapchainTexture);
+        D3D11_INTERNAL_LogError(renderer->device, "Swapchain UAV creation failed", res);
+        return SDL_FALSE;
+    }
+
+    /* Fill out the texture struct */
+    pTexture->handle = NULL; /* This will be set in AcquireSwapchainTexture. */
+    pTexture->shaderView = srv;
+    pTexture->subresourceCount = 1;
+    pTexture->subresources = SDL_malloc(sizeof(D3D11TextureSubresource));
+    pTexture->subresources[0].colorTargetView = rtv;
+    pTexture->subresources[0].srv = srv;
+    pTexture->subresources[0].uav = uav;
+    pTexture->subresources[0].depthStencilTargetView = NULL;
+    pTexture->subresources[0].msaaHandle = NULL;
+    pTexture->subresources[0].msaaTargetView = NULL;
+    pTexture->subresources[0].layer = 0;
+    pTexture->subresources[0].level = 0;
+    pTexture->subresources[0].index = 0;
+    pTexture->subresources[0].parent = pTexture;
+    SDL_AtomicSet(&pTexture->subresources[0].referenceCount, 0);
+
+    ID3D11Texture2D_GetDesc(swapchainTexture, &textureDesc);
+    pTexture->levelCount = textureDesc.MipLevels;
+    pTexture->width = textureDesc.Width;
+    pTexture->height = textureDesc.Height;
+    pTexture->depth = 1;
+    pTexture->isCube = 0;
+    pTexture->isRenderTarget = 1;
+
+    /* Cleanup */
+    ID3D11Texture2D_Release(swapchainTexture);
+
+    return SDL_TRUE;
+}
+
 static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     D3D12Renderer *renderer,
     D3D12WindowData *windowData,
@@ -609,6 +744,27 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
         &swapchain);
     ERROR_CHECK_RETURN("Could not create swapchain", 0);
 
+    res = IDXGISwapChain3_QueryInterface(
+        swapchain,
+        &D3D_IID_IDXGISwapChain3,
+        (void **)&swapchain3);
+    IDXGISwapChain_Release(swapchain);
+    ERROR_CHECK_RETURN("Could not create swapchain", 0);
+
+    IDXGISwapChain3_CheckColorSpaceSupport(
+        swapchain3,
+        windowData->swapchainColorSpace,
+        &colorSpaceSupport);
+
+    if (!(colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Requested colorspace is unsupported!");
+        return SDL_FALSE;
+    }
+
+    IDXGISwapChain3_SetColorSpace1(
+        swapchain3,
+        windowData->swapchainColorSpace);
+
     /*
      * The swapchain's parent is a separate factory from the factory that
      * we used to create the swapchain, and only that parent can be used to
@@ -617,7 +773,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
      * See https://gamedev.net/forums/topic/634235-dxgidisabling-altenter/4999955/
      */
     res = IDXGISwapChain_GetParent(
-        swapchain,
+        swapchain3,
         &D3D_IID_IDXGIFactory1,
         (void **)&pParent);
     if (FAILED(res)) {
@@ -642,7 +798,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
         IDXGIFactory1_Release(pParent);
     }
     /* Initialize the swapchain data */
-    windowData->swapchain = swapchain;
+    windowData->swapchain = swapchain3;
     windowData->presentMode = presentMode;
     windowData->swapchainComposition = swapchainComposition;
     windowData->swapchainFormat = swapchainFormat;
@@ -652,30 +808,6 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     //    for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
     //        windowData->inFlightFences[i] = NULL;
     //    }
-
-    if (SUCCEEDED(IDXGISwapChain3_QueryInterface(
-            swapchain,
-            &D3D_IID_IDXGISwapChain3,
-            (void **)&swapchain3))) {
-        IDXGISwapChain3_CheckColorSpaceSupport(
-            swapchain3,
-            windowData->swapchainColorSpace,
-            &colorSpaceSupport);
-
-        if (!(colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Requested colorspace is unsupported!");
-            return SDL_FALSE;
-        }
-
-        IDXGISwapChain3_SetColorSpace1(
-            swapchain3,
-            windowData->swapchainColorSpace);
-
-        IDXGISwapChain3_Release(swapchain3);
-    } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "DXGI 1.4 not supported, cannot use colorspace other than SDL_GPU_COLORSPACE_NONLINEAR_SRGB!");
-        return SDL_FALSE;
-    }
 
     /* If a you are using a FLIP model format you can't create the swapchain as DXGI_FORMAT_B8G8R8A8_UNORM_SRGB.
      * You have to create the swapchain as DXGI_FORMAT_B8G8R8A8_UNORM and then set the render target view's format to DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
@@ -691,8 +823,8 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     }
 
     /* Initialize dummy container */
-    SDL_zerop(&windowData->textureContainer);
-    windowData->textureContainer.textures = SDL_calloc(1, sizeof(D3D12Texture *));
+    // SDL_zerop(&windowData->textureContainer);
+    // windowData->textureContainer.textures = SDL_calloc(1, sizeof(D3D12Texture *));
 
     return SDL_TRUE;
 }
@@ -858,13 +990,13 @@ static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
         return SDL_FALSE;
     }
 
-        /* Check for DXGI 1.4 support */
+    /* Check for DXGI 1.4 support */
     res = IDXGIFactory1_QueryInterface(
         factory,
         &D3D_IID_IDXGIFactory4,
         (void **)&factory4);
     if (FAILED(res)) {
-                IDXGIFactory1_Release(factory);
+        IDXGIFactory1_Release(factory);
         SDL_UnloadObject(d3d12_dll);
         SDL_UnloadObject(dxgi_dll);
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Failed to find DXGI1.4 support, required for DX12");
