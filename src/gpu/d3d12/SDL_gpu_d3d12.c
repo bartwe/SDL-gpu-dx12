@@ -104,7 +104,7 @@ static const IID D3D_IID_IDXGIDebug = { 0x119e7452, 0xde9e, 0x40fe, { 0x88, 0x06
 // static const GUID D3D_IID_DXGI_DEBUG_ALL = { 0xe48ae283, 0xda80, 0x490b, { 0x87, 0xe6, 0x43, 0xe9, 0xa9, 0xcf, 0xda, 0x08 } };
 
 static const IID D3D_IID_ID3D12Device = { 0x189819f1, 0x1db6, 0x4b57, { 0xbe, 0x54, 0x18, 0x21, 0x33, 0x9b, 0x85, 0xf7 } };
-
+static const IID D3D_IID_ID3D12CommandQueue = { 0x0ec870a6, 0x5d7e, 0x4c22, { 0x8c, 0xfc, 0x5b, 0xaa, 0xe0, 0x76, 0x16, 0xed } };
 
 /* Conversions */
 
@@ -124,7 +124,6 @@ static DXGI_COLOR_SPACE_TYPE SwapchainCompositionToColorSpace[] = {
 
 /* Structures */
 typedef struct D3D12Renderer D3D12Renderer;
-
 
 typedef struct D3D12WindowData
 {
@@ -147,8 +146,7 @@ struct D3D12Renderer
     void *d3dcompiler_dll;
     PFN_D3DCOMPILE D3DCompile_func;
     void *dxgi_dll;
-    IDXGIFactory1 *factory;
-    SDL_bool supportsFlipDiscard;
+    IDXGIFactory4 *factory;
     BOOL supportsTearing;
     IDXGIAdapter1 *adapter;
     void *d3d12_dll;
@@ -157,6 +155,7 @@ struct D3D12Renderer
     size_t claimedWindowCount;
     size_t claimedWindowCapacity;
     D3D12WindowData **claimedWindows;
+    ID3D12CommandQueue *commandQueue;
 };
 
 /* Logging */
@@ -591,21 +590,22 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     swapchainDesc.BufferCount = 2;
     swapchainDesc.OutputWindow = dxgiHandle;
     swapchainDesc.Windowed = 1;
+    swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
     if (renderer->supportsTearing) {
         swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-        /* We know this is supported because tearing support implies DXGI 1.5+ */
-        swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     } else {
         swapchainDesc.Flags = 0;
-        swapchainDesc.SwapEffect = (renderer->supportsFlipDiscard ? DXGI_SWAP_EFFECT_FLIP_DISCARD : DXGI_SWAP_EFFECT_DISCARD);
     }
 
     /* Create the swapchain! */
-    res = IDXGIFactory1_CreateSwapChain(
-        (IDXGIFactory1 *)renderer->factory,
-        (IUnknown *)renderer->device,
+    res = IDXGIFactory4_CreateSwapChainForHwnd(
+        renderer->factory,
+        (IUnknown *)renderer->commandQueue,
+        dxgiHandle,
         &swapchainDesc,
+        NULL,
+        NULL,
         &swapchain);
     ERROR_CHECK_RETURN("Could not create swapchain", 0);
 
@@ -649,9 +649,9 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     windowData->swapchainColorSpace = SwapchainCompositionToColorSpace[swapchainComposition];
     windowData->frameCounter = 0;
 
-//    for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
-//        windowData->inFlightFences[i] = NULL;
-//    }
+    //    for (i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
+    //        windowData->inFlightFences[i] = NULL;
+    //    }
 
     if (SUCCEEDED(IDXGISwapChain3_QueryInterface(
             swapchain,
@@ -807,6 +807,7 @@ static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
     ID3D12Device *device;
 
     IDXGIFactory1 *factory;
+    IDXGIFactory4 *factory4;
     IDXGIFactory6 *factory6;
     IDXGIAdapter1 *adapter;
 
@@ -856,6 +857,20 @@ static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Could not create DXGIFactory");
         return SDL_FALSE;
     }
+
+        /* Check for DXGI 1.4 support */
+    res = IDXGIFactory1_QueryInterface(
+        factory,
+        &D3D_IID_IDXGIFactory4,
+        (void **)&factory4);
+    if (FAILED(res)) {
+                IDXGIFactory1_Release(factory);
+        SDL_UnloadObject(d3d12_dll);
+        SDL_UnloadObject(dxgi_dll);
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "D3D12: Failed to find DXGI1.4 support, required for DX12");
+        return SDL_FALSE;
+    }
+    IDXGIFactory4_Release(factory4);
 
     res = IDXGIAdapter1_QueryInterface(
         factory,
@@ -965,6 +980,10 @@ static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer **rendererRef)
     SDL_DestroyMutex(renderer->windowLock);
     renderer->windowLock = NULL;
 
+    if (renderer->commandQueue) {
+        ID3D12CommandQueue_Release(renderer->commandQueue);
+        renderer->commandQueue = NULL;
+    }
     if (renderer->device) {
         ID3D12Device_Release(renderer->device);
         renderer->device = NULL;
@@ -974,7 +993,7 @@ static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer **rendererRef)
         renderer->adapter = NULL;
     }
     if (renderer->factory) {
-        IDXGIFactory1_Release(renderer->factory);
+        IDXGIFactory4_Release(renderer->factory);
         renderer->factory = NULL;
     }
     if (renderer->dxgiDebug) {
@@ -1007,7 +1026,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     D3D12Renderer *renderer;
     PFN_CREATE_DXGI_FACTORY1 CreateDXGIFactoryFunc;
     HRESULT res;
-    IDXGIFactory4 *factory4;
+    IDXGIFactory1 *factory1;
     IDXGIFactory5 *factory5;
     IDXGIFactory6 *factory6;
     DXGI_ADAPTER_DESC1 adapterDesc;
@@ -1056,24 +1075,25 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     /* Create the DXGI factory */
     res = CreateDXGIFactoryFunc(
         &D3D_IID_IDXGIFactory1,
-        (void **)&renderer->factory);
+        (void **)&factory1);
     if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRenderer(&renderer);
         ERROR_CHECK_RETURN("Could not create DXGIFactory", NULL);
     }
 
-    /* Check for flip-model discard support (supported on Windows 10+) */
+    /* Check for DXGI 1.4 support */
     res = IDXGIFactory1_QueryInterface(
-        renderer->factory,
+        factory1,
         &D3D_IID_IDXGIFactory4,
-        (void **)&factory4);
-    if (SUCCEEDED(res)) {
-        renderer->supportsFlipDiscard = 1;
-        IDXGIFactory4_Release(factory4);
+        (void **)&renderer->factory);
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
+        ERROR_CHECK_RETURN("DXGI1.4 support not found, required for DX12", NULL);
     }
+    IDXGIFactory1_Release(factory1);
 
     /* Check for explicit tearing support */
-    res = IDXGIFactory1_QueryInterface(
+    res = IDXGIFactory4_QueryInterface(
         renderer->factory,
         &D3D_IID_IDXGIFactory5,
         (void **)&factory5);
@@ -1103,7 +1123,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
             (void **)&renderer->adapter);
         IDXGIFactory6_Release(factory6);
     } else {
-        res = IDXGIFactory1_EnumAdapters1(
+        res = IDXGIFactory4_EnumAdapters1(
             renderer->factory,
             0,
             &renderer->adapter);
@@ -1149,6 +1169,21 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRenderer(&renderer);
         ERROR_CHECK_RETURN("Could not create D3D12Device", NULL);
+    }
+
+    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+    queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+
+    res = ID3D12Device_CreateCommandQueue(
+        renderer->device,
+        &queueDesc,
+        &D3D_IID_ID3D12CommandQueue,
+        (void **)&renderer->commandQueue);
+
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRenderer(&renderer);
+        ERROR_CHECK_RETURN("Could not create D3D12CommandQueue", NULL);
     }
 
     renderer->windowLock = SDL_CreateMutex();
