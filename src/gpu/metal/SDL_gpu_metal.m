@@ -731,19 +731,19 @@ static MetalLibraryFunction METAL_INTERNAL_CompileShader(
         );
         library = [renderer->device newLibraryWithData:data error:&error];
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Incompatible shader format for Metal");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Incompatible shader format for Metal");
         return libraryFunction;
     }
 
     if (library == nil) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Creating MTLLibrary failed: %s",
             [[error description] cStringUsingEncoding:[NSString defaultCStringEncoding]]);
         return libraryFunction;
     } else if (error != nil) {
         SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Creating MTLLibrary failed: %s",
             [[error description] cStringUsingEncoding:[NSString defaultCStringEncoding]]);
     }
@@ -751,7 +751,7 @@ static MetalLibraryFunction METAL_INTERNAL_CompileShader(
     function = [library newFunctionWithName:@(entryPointName)];
     if (function == nil) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Creating MTLFunction failed");
         return libraryFunction;
     }
@@ -906,7 +906,7 @@ static SDL_GpuComputePipeline *METAL_CreateComputePipeline(
     handle = [renderer->device newComputePipelineStateWithFunction:libraryFunction.function error:&error];
     if (error != NULL) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Creating compute pipeline failed: %s", [[error description] UTF8String]);
         return NULL;
     }
@@ -1029,7 +1029,7 @@ static SDL_GpuGraphicsPipeline *METAL_CreateGraphicsPipeline(
     pipelineState = [renderer->device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
     if (error != NULL) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Creating render pipeline failed: %s", [[error description] UTF8String]);
         return NULL;
     }
@@ -1205,7 +1205,7 @@ static SDL_GpuSampler *METAL_CreateSampler(
 
     sampler = [renderer->device newSamplerStateWithDescriptor:samplerDesc];
     if (sampler == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create sampler");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create sampler");
         return NULL;
     }
 
@@ -1292,7 +1292,7 @@ static MetalTexture *METAL_INTERNAL_CreateTexture(
 
     texture = [renderer->device newTextureWithDescriptor:textureDescriptor];
     if (texture == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create MTLTexture!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create MTLTexture!");
         return NULL;
     }
 
@@ -1350,7 +1350,7 @@ static SDL_GpuTexture *METAL_CreateTexture(
         &newTextureCreateInfo);
 
     if (texture == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create texture!");
         return NULL;
     }
 
@@ -1422,7 +1422,7 @@ static MetalBuffer *METAL_INTERNAL_CreateBuffer(
 
     bufferHandle = [renderer->device newBufferWithLength:sizeInBytes options:resourceOptions];
     if (bufferHandle == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create buffer");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Could not create buffer");
         return NULL;
     }
 
@@ -1504,7 +1504,7 @@ static MetalUniformBuffer *METAL_INTERNAL_CreateUniformBuffer(
 
     bufferHandle = [renderer->device newBufferWithLength:sizeInBytes options:MTLResourceCPUCacheModeWriteCombined];
     if (bufferHandle == nil) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create uniform buffer");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Could not create uniform buffer");
         return NULL;
     }
 
@@ -1794,7 +1794,7 @@ static void METAL_GenerateMipmaps(
     MetalTexture *metalTexture = container->activeTexture;
 
     if (container->createInfo.levelCount <= 1) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot generate mipmaps for texture with levelCount <= 1!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot generate mipmaps for texture with levelCount <= 1!");
         return;
     }
 
@@ -1976,7 +1976,7 @@ static Uint8 METAL_INTERNAL_AcquireFence(
     if (renderer->availableFenceCount == 0) {
         if (!METAL_INTERNAL_CreateFence(renderer)) {
             SDL_UnlockMutex(renderer->fenceLock);
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create fence!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create fence!");
             return 0;
         }
     }
@@ -2723,7 +2723,7 @@ static void METAL_INTERNAL_PushUniformData(
         }
         metalUniformBuffer = metalCommandBuffer->computeUniformBuffers[slotIndex];
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized shader stage!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized shader stage!");
         return;
     }
 
@@ -2749,7 +2749,7 @@ static void METAL_INTERNAL_PushUniformData(
         } else if (shaderStage == SDL_GPU_SHADERSTAGE_COMPUTE) {
             metalCommandBuffer->computeUniformBuffers[slotIndex] = metalUniformBuffer;
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized shader stage!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized shader stage!");
             return;
         }
     }
@@ -2770,7 +2770,7 @@ static void METAL_INTERNAL_PushUniformData(
     } else if (shaderStage == SDL_GPU_SHADERSTAGE_COMPUTE) {
         metalCommandBuffer->needComputeUniformBind = SDL_TRUE;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized shader stage!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized shader stage!");
     }
 }
 
@@ -2851,7 +2851,7 @@ static SDL_GpuGraphicsPipeline *METAL_INTERNAL_FetchBlitPipeline(
         (SDL_GpuRenderer *)renderer,
         &blitPipelineCreateInfo);
     if (pipeline == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create blit pipeline!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create blit pipeline!");
         SDL_UnlockMutex(renderer->submitLock);
         return NULL;
     }
@@ -2889,17 +2889,17 @@ static void METAL_Blit(
     /* FIXME: cube copies? texture arrays? */
 
     if (sourceTextureContainer->createInfo.depth > 1) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "3D blit source not implemented!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "3D blit source not implemented!");
         return;
     }
 
     if (destinationTextureContainer->createInfo.depth > 1) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "3D blit destination not implemented!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "3D blit destination not implemented!");
         return;
     }
 
     if ((sourceTextureContainer->createInfo.usageFlags & SDL_GPU_TEXTUREUSAGE_SAMPLER_BIT) == 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Blit source texture must be created with SAMPLER bit!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Blit source texture must be created with SAMPLER bit!");
         return;
     }
 
@@ -3420,12 +3420,12 @@ static SDL_bool METAL_ClaimWindow(
 
             return SDL_TRUE;
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create swapchain, failed to claim window!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Could not create swapchain, failed to claim window!");
             SDL_free(windowData);
             return SDL_FALSE;
         }
     } else {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Window already claimed!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Window already claimed!");
         return SDL_FALSE;
     }
 }
@@ -3517,7 +3517,7 @@ static SDL_GpuTextureFormat METAL_GetSwapchainTextureFormat(
     MetalWindowData *windowData = METAL_INTERNAL_FetchWindowData(window);
 
     if (windowData == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot get swapchain format, window has not been claimed!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot get swapchain format, window has not been claimed!");
         return 0;
     }
 
@@ -3534,17 +3534,17 @@ static SDL_bool METAL_SetSwapchainParameters(
     CGColorSpaceRef colorspace;
 
     if (windowData == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot set swapchain parameters, window has not been claimed!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot set swapchain parameters, window has not been claimed!");
         return SDL_FALSE;
     }
 
     if (!METAL_SupportsSwapchainComposition(driverData, window, swapchainComposition)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Swapchain composition not supported!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Swapchain composition not supported!");
         return SDL_FALSE;
     }
 
     if (!METAL_SupportsPresentMode(driverData, window, presentMode)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Present mode not supported!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Present mode not supported!");
         return SDL_FALSE;
     }
 
@@ -3747,7 +3747,7 @@ static void METAL_INTERNAL_InitBlitResources(
         &shaderModuleCreateInfo);
 
     if (renderer->fullscreenVertexShader == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to compile fullscreen vertex shader!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to compile fullscreen vertex shader!");
     }
 
     /* Blit from 2D pixel shader */
@@ -3762,7 +3762,7 @@ static void METAL_INTERNAL_InitBlitResources(
         &shaderModuleCreateInfo);
 
     if (renderer->blitFrom2DPixelShader == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to compile blit from 2D fragment shader!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to compile blit from 2D fragment shader!");
     }
 
     /* Create samplers */
@@ -3783,7 +3783,7 @@ static void METAL_INTERNAL_InitBlitResources(
         &samplerCreateInfo);
 
     if (renderer->blitNearestSampler == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create blit nearest sampler!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create blit nearest sampler!");
     }
 
     samplerCreateInfo.magFilter = SDL_GPU_FILTER_LINEAR;
@@ -3795,7 +3795,7 @@ static void METAL_INTERNAL_InitBlitResources(
         &samplerCreateInfo);
 
     if (renderer->blitLinearSampler == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create blit linear sampler!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create blit linear sampler!");
     }
 }
 
@@ -3843,9 +3843,9 @@ static SDL_GpuDevice *METAL_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
     renderer->queue = [renderer->device newCommandQueue];
 
     /* Print driver info */
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL_Gpu Driver: Metal");
+    SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "SDL_Gpu Driver: Metal");
     SDL_LogInfo(
-        SDL_LOG_CATEGORY_APPLICATION,
+        SDL_LOG_CATEGORY_GPU,
         "Metal Device: %s",
         [renderer->device.name UTF8String]);
 
