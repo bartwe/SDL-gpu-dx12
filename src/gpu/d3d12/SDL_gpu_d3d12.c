@@ -551,7 +551,7 @@ static D3D12WindowData *D3D12_INTERNAL_FetchWindowData(
 
 static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
     D3D12Renderer *renderer,
-    IDXGISwapChain *swapchain,
+    IDXGISwapChain3 *swapchain,
     DXGI_FORMAT swapchainFormat,
     DXGI_FORMAT rtvFormat)
 {
@@ -581,9 +581,9 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
 
     for (UINT i = 0; i < SWAPCHAIN_BUFFER_COUNT; ++i) {
         // Get a pointer to the back buffer
-        res = IDXGISwapChain_GetBuffer(swapchain, i,
-                                       &D3D_IID_ID3D12Resource,
-                                       (void **)&renderTargets[i]);
+        res = IDXGISwapChain3_GetBuffer(swapchain, i,
+                                        &D3D_IID_ID3D12Resource,
+                                        (void **)&renderTargets[i]);
         ERROR_CHECK_RETURN("Could not get swapchain buffer descriptor heap!", 0);
 
         // Create an RTV for each buffer
@@ -608,10 +608,10 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     HWND dxgiHandle;
     int width, height;
     Uint32 i;
-    DXGI_SWAP_CHAIN_DESC swapchainDesc;
+    DXGI_SWAP_CHAIN_DESC1 swapchainDesc;
     DXGI_FORMAT swapchainFormat;
     IDXGIFactory1 *pParent;
-    IDXGISwapChain *swapchain;
+    IDXGISwapChain1 *swapchain;
     IDXGISwapChain3 *swapchain3;
     Uint32 colorSpaceSupport;
     HRESULT res;
@@ -628,23 +628,26 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
 
     swapchainFormat = SwapchainCompositionToTextureFormat[swapchainComposition];
 
-    /* Initialize the swapchain buffer descriptor */
-    swapchainDesc.BufferDesc.Width = 0;
-    swapchainDesc.BufferDesc.Height = 0;
-    swapchainDesc.BufferDesc.RefreshRate.Numerator = 0;
-    swapchainDesc.BufferDesc.RefreshRate.Denominator = 0;
-    swapchainDesc.BufferDesc.Format = swapchainFormat;
-    swapchainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-    swapchainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-
-    /* Initialize the rest of the swapchain descriptor */
+    // Initialize the swapchain buffer descriptor
+    swapchainDesc.Width = 0;
+    swapchainDesc.Height = 0;
+    swapchainDesc.Format = swapchainFormat;
+    swapchainDesc.Stereo = SDL_FALSE;
     swapchainDesc.SampleDesc.Count = 1;
     swapchainDesc.SampleDesc.Quality = 0;
     swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
     swapchainDesc.BufferCount = SWAPCHAIN_BUFFER_COUNT;
-    swapchainDesc.OutputWindow = dxgiHandle;
-    swapchainDesc.Windowed = 1;
+    swapchainDesc.Scaling = DXGI_SCALING_STRETCH;
     swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+    swapchainDesc.Flags = 0;
+
+    // Initialize the fullscreen descriptor (if needed)
+    DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreenDesc = {};
+    fullscreenDesc.RefreshRate.Numerator = 0;
+    fullscreenDesc.RefreshRate.Denominator = 0;
+    fullscreenDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    fullscreenDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
 
     if (renderer->supportsTearing) {
         swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
@@ -667,7 +670,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
         swapchain,
         &D3D_IID_IDXGISwapChain3,
         (void **)&swapchain3);
-    IDXGISwapChain_Release(swapchain);
+    IDXGISwapChain1_Release(swapchain);
     ERROR_CHECK_RETURN("Could not create swapchain", 0);
 
     IDXGISwapChain3_CheckColorSpaceSupport(
@@ -733,10 +736,10 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
      */
     if (!D3D12_INTERNAL_InitializeSwapchainTexture(
             renderer,
-            swapchain,
+            swapchain3,
             swapchainFormat,
             (swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat)) {
-        IDXGISwapChain_Release(swapchain);
+        IDXGISwapChain_Release(swapchain3);
         return SDL_FALSE;
     }
 
@@ -758,6 +761,7 @@ SDL_bool D3D12_ClaimWindow(
 
     if (windowData == NULL) {
         windowData = (D3D12WindowData *)SDL_malloc(sizeof(D3D12WindowData));
+        SDL_zerop(windowData);
         windowData->window = window;
 
         if (D3D12_INTERNAL_CreateSwapchain(renderer, windowData, swapchainComposition, presentMode)) {
@@ -1027,8 +1031,10 @@ static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer **rendererRef)
     if (!renderer)
         return;
     *rendererRef = NULL;
-    SDL_DestroyMutex(renderer->windowLock);
-    renderer->windowLock = NULL;
+    if (renderer->windowLock) {
+        SDL_DestroyMutex(renderer->windowLock);
+        renderer->windowLock = NULL;
+    }
 
     if (renderer->commandQueue) {
         ID3D12CommandQueue_Release(renderer->commandQueue);
@@ -1070,7 +1076,7 @@ static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer **rendererRef)
     SDL_free(renderer);
 }
 
-static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
+static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowPower)
 {
     SDL_GpuDevice *result;
     D3D12Renderer *renderer;
@@ -1083,6 +1089,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
     PFN_D3D12_CREATE_DEVICE D3D12CreateDeviceFunc;
 
     renderer = (D3D12Renderer *)SDL_malloc(sizeof(D3D12Renderer));
+    SDL_zerop(renderer);
 
     /* Load the D3DCompiler library */
     renderer->d3dcompiler_dll = SDL_LoadObject(D3DCOMPILER_DLL);
@@ -1109,7 +1116,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
 
     /* Initialize the DXGI debug layer, if applicable */
     if (debugMode) {
-        D3D12_INTERNAL_TryInitializeDXGIDebug(&renderer);
+        D3D12_INTERNAL_TryInitializeDXGIDebug(renderer);
     }
 
     /* Load the CreateDXGIFactory1 function */
@@ -1168,7 +1175,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
         res = IDXGIFactory6_EnumAdapterByGpuPreference(
             factory6,
             0,
-            DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+            preferLowPower ? DXGI_GPU_PREFERENCE_MINIMUM_POWER : DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
             &D3D_IID_IDXGIAdapter1,
             (void **)&renderer->adapter);
         IDXGIFactory6_Release(factory6);
@@ -1240,6 +1247,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode)
 
     /* Create the SDL_Gpu Device */
     result = (SDL_GpuDevice *)SDL_malloc(sizeof(SDL_GpuDevice));
+    SDL_zerop(result);
     ASSIGN_DRIVER(D3D12)
     result->driverData = (SDL_GpuRenderer *)renderer;
 
