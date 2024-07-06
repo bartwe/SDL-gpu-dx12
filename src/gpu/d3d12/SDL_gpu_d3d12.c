@@ -74,6 +74,7 @@
 #define WINDOW_PROPERTY_DATA          "SDL_GpuD3D12WindowPropertyData"
 #define D3D_FEATURE_LEVEL_CHOICE      D3D_FEATURE_LEVEL_11_1
 #define D3D_FEATURE_LEVEL_CHOICE_STR  "11_1"
+#define SWAPCHAIN_BUFFER_COUNT        2
 
 // #define SDL_GPU_SHADERSTAGE_COMPUTE 2
 
@@ -106,6 +107,8 @@ static const IID D3D_IID_IDXGIDebug = { 0x119e7452, 0xde9e, 0x40fe, { 0x88, 0x06
 static const IID D3D_IID_ID3D12Device = { 0x189819f1, 0x1db6, 0x4b57, { 0xbe, 0x54, 0x18, 0x21, 0x33, 0x9b, 0x85, 0xf7 } };
 static const IID D3D_IID_ID3D12CommandQueue = { 0x0ec870a6, 0x5d7e, 0x4c22, { 0x8c, 0xfc, 0x5b, 0xaa, 0xe0, 0x76, 0x16, 0xed } };
 static const IID D3D_IID_ID3D12DescriptorHeap = { 0x8efb471d, 0x616c, 0x4f49, { 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51 } };
+static const IID D3D_IID_ID3D12Resource = { 0x696442be, 0xa72e, 0x4059, { 0xbc, 0x79, 0x5b, 0x5c, 0x98, 0x04, 0x0f, 0xad } };
+static const IID D3D_IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89, { 0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c } };
 
 /* Conversions */
 
@@ -550,25 +553,16 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
     D3D12Renderer *renderer,
     IDXGISwapChain *swapchain,
     DXGI_FORMAT swapchainFormat,
-    DXGI_FORMAT rtvFormat,
-    D3D12Texture *pTexture)
+    DXGI_FORMAT rtvFormat)
 {
-    ID3D12Texture2D *swapchainTexture;
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc;
-    D3D12_TEXTURE2D_DESC textureDesc;
-    ID3D12ShaderResourceView *srv;
-    ID3D12RenderTargetView *rtv;
-    ID3D12UnorderedAccessView *uav;
     HRESULT res;
-
-    /* Clear all the texture data */
-    SDL_zerop(pTexture);
 
     ID3D12DescriptorHeap *rtvHeap;
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-    rtvHeapDesc.NumDescriptors = bufferCount;
+    rtvHeapDesc.NumDescriptors = SWAPCHAIN_BUFFER_COUNT;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     res = ID3D12Device_CreateDescriptorHeap(renderer->device, &rtvHeapDesc,
@@ -576,107 +570,32 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
                                             (void **)&rtvHeap);
     ERROR_CHECK_RETURN("Could not create descriptor heap!", 0);
 
-    
     UINT rtvDescriptorSize = ID3D12Device_GetDescriptorHandleIncrementSize(renderer->device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    //CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
-    std::vector<ComPtr<ID3D12Resource>> renderTargets(bufferCount);
-    for (UINT i = 0; i < bufferCount; ++i) {
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor;
+    SDL_zero(rtvDescriptor);
+    ID3D12DescriptorHeap_GetCPUDescriptorHandleForHeapStart(rtvHeap, &rtvDescriptor);
+
+    ID3D12Resource *renderTargets[SWAPCHAIN_BUFFER_COUNT];
+    SDL_zero(renderTargets);
+
+    for (UINT i = 0; i < SWAPCHAIN_BUFFER_COUNT; ++i) {
         // Get a pointer to the back buffer
-        swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i]));
+        res = IDXGISwapChain_GetBuffer(swapchain, i,
+                                       &D3D_IID_ID3D12Resource,
+                                       (void **)&renderTargets[i]);
+        ERROR_CHECK_RETURN("Could not get swapchain buffer descriptor heap!", 0);
 
         // Create an RTV for each buffer
-        device->CreateRenderTargetView(renderTargets[i].Get(), nullptr, rtvHandle);
-        rtvHandle.Offset(1, rtvDescriptorSize);
+
+        SDL_zero(rtvDesc);
+        rtvDesc.Format = rtvFormat;
+        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
+        ID3D12Device_CreateRenderTargetView(renderer->device, renderTargets[i], &rtvDesc, rtvDescriptor);
+
+        rtvDescriptor.ptr += 1 * rtvDescriptorSize;
     }
-
-    /* Grab the buffer from the swapchain */
-    res = IDXGISwapChain_GetBuffer(
-        swapchain,
-        0,
-        &D3D_IID_ID3D11Texture2D,
-        (void **)&swapchainTexture);
-    ERROR_CHECK_RETURN("Could not get buffer from swapchain!", 0);
-
-    /* Create the SRV for the swapchain */
-    srvDesc.Format = swapchainFormat;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = 1;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-
-    res = ID3D11Device_CreateShaderResourceView(
-        renderer->device,
-        (ID3D11Resource *)swapchainTexture,
-        &srvDesc,
-        &srv);
-    if (FAILED(res)) {
-        ID3D11Texture2D_Release(swapchainTexture);
-        D3D11_INTERNAL_LogError(renderer->device, "Swapchain SRV creation failed", res);
-        return SDL_FALSE;
-    }
-
-    /* Create the RTV for the swapchain */
-    rtvDesc.Format = rtvFormat;
-    rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-    rtvDesc.Texture2D.MipSlice = 0;
-
-    res = ID3D11Device_CreateRenderTargetView(
-        renderer->device,
-        (ID3D11Resource *)swapchainTexture,
-        &rtvDesc,
-        &rtv);
-    if (FAILED(res)) {
-        ID3D11ShaderResourceView_Release(srv);
-        ID3D11Texture2D_Release(swapchainTexture);
-        D3D11_INTERNAL_LogError(renderer->device, "Swapchain RTV creation failed", res);
-        return SDL_FALSE;
-    }
-
-    uavDesc.Format = swapchainFormat;
-    uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-    uavDesc.Texture2D.MipSlice = 0;
-
-    res = ID3D11Device_CreateUnorderedAccessView(
-        renderer->device,
-        (ID3D11Resource *)swapchainTexture,
-        &uavDesc,
-        &uav);
-    if (FAILED(res)) {
-        ID3D11ShaderResourceView_Release(srv);
-        ID3D11RenderTargetView_Release(rtv);
-        ID3D11Texture2D_Release(swapchainTexture);
-        D3D11_INTERNAL_LogError(renderer->device, "Swapchain UAV creation failed", res);
-        return SDL_FALSE;
-    }
-
-    /* Fill out the texture struct */
-    pTexture->handle = NULL; /* This will be set in AcquireSwapchainTexture. */
-    pTexture->shaderView = srv;
-    pTexture->subresourceCount = 1;
-    pTexture->subresources = SDL_malloc(sizeof(D3D11TextureSubresource));
-    pTexture->subresources[0].colorTargetView = rtv;
-    pTexture->subresources[0].srv = srv;
-    pTexture->subresources[0].uav = uav;
-    pTexture->subresources[0].depthStencilTargetView = NULL;
-    pTexture->subresources[0].msaaHandle = NULL;
-    pTexture->subresources[0].msaaTargetView = NULL;
-    pTexture->subresources[0].layer = 0;
-    pTexture->subresources[0].level = 0;
-    pTexture->subresources[0].index = 0;
-    pTexture->subresources[0].parent = pTexture;
-    SDL_AtomicSet(&pTexture->subresources[0].referenceCount, 0);
-
-    ID3D11Texture2D_GetDesc(swapchainTexture, &textureDesc);
-    pTexture->levelCount = textureDesc.MipLevels;
-    pTexture->width = textureDesc.Width;
-    pTexture->height = textureDesc.Height;
-    pTexture->depth = 1;
-    pTexture->isCube = 0;
-    pTexture->isRenderTarget = 1;
-
-    /* Cleanup */
-    ID3D11Texture2D_Release(swapchainTexture);
-
     return SDL_TRUE;
 }
 
@@ -722,7 +641,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     swapchainDesc.SampleDesc.Count = 1;
     swapchainDesc.SampleDesc.Quality = 0;
     swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
-    swapchainDesc.BufferCount = 2;
+    swapchainDesc.BufferCount = SWAPCHAIN_BUFFER_COUNT;
     swapchainDesc.OutputWindow = dxgiHandle;
     swapchainDesc.Windowed = 1;
     swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
@@ -816,8 +735,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
             renderer,
             swapchain,
             swapchainFormat,
-            (swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat,
-            &windowData->texture)) {
+            (swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat)) {
         IDXGISwapChain_Release(swapchain);
         return SDL_FALSE;
     }
