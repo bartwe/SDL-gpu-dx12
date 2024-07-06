@@ -29,57 +29,55 @@
         return retval;                      \
     }
 
-/* FIXME DEBUGMODE */
-
-#define CHECK_COMMAND_BUFFER                                                             \
-    if (((CommandBufferCommonHeader *)commandBuffer)->submitted) {                       \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Command buffer already submitted!"); \
-        return;                                                                          \
+#define CHECK_COMMAND_BUFFER                                       \
+    if (((CommandBufferCommonHeader *)commandBuffer)->submitted) { \
+        SDL_assert_release(!"Command buffer already submitted!");  \
+        return;                                                    \
     }
 
-#define CHECK_COMMAND_BUFFER_RETURN_NULL                                                 \
-    if (((CommandBufferCommonHeader *)commandBuffer)->submitted) {                       \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Command buffer already submitted!"); \
-        return NULL;                                                                     \
+#define CHECK_COMMAND_BUFFER_RETURN_NULL                           \
+    if (((CommandBufferCommonHeader *)commandBuffer)->submitted) { \
+        SDL_assert_release(!"Command buffer already submitted!");  \
+        return NULL;                                               \
     }
 
-#define CHECK_ANY_PASS_IN_PROGRESS                                               \
-    if (                                                                         \
-        ((CommandBufferCommonHeader *)commandBuffer)->renderPass.inProgress ||   \
-        ((CommandBufferCommonHeader *)commandBuffer)->computePass.inProgress ||  \
-        ((CommandBufferCommonHeader *)commandBuffer)->copyPass.inProgress) {     \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Pass already in progress!"); \
-        return NULL;                                                             \
+#define CHECK_ANY_PASS_IN_PROGRESS                                              \
+    if (                                                                        \
+        ((CommandBufferCommonHeader *)commandBuffer)->renderPass.inProgress ||  \
+        ((CommandBufferCommonHeader *)commandBuffer)->computePass.inProgress || \
+        ((CommandBufferCommonHeader *)commandBuffer)->copyPass.inProgress) {    \
+        SDL_assert_release(!"Pass already in progress!");                       \
+        return NULL;                                                            \
     }
 
-#define CHECK_RENDERPASS                                                            \
-    if (!((Pass *)renderPass)->inProgress) {                                        \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Render pass not in progress!"); \
-        return;                                                                     \
+#define CHECK_RENDERPASS                                     \
+    if (!((Pass *)renderPass)->inProgress) {                 \
+        SDL_assert_release(!"Render pass not in progress!"); \
+        return;                                              \
     }
 
 #define CHECK_GRAPHICS_PIPELINE_BOUND                                                       \
     if (!((CommandBufferCommonHeader *)RENDERPASS_COMMAND_BUFFER)->graphicsPipelineBound) { \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Graphics pipeline not bound!");         \
+        SDL_assert_release(!"Graphics pipeline not bound!");                                \
         return;                                                                             \
     }
 
-#define CHECK_COMPUTEPASS                                                            \
-    if (!((Pass *)computePass)->inProgress) {                                        \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Compute pass not in progress!"); \
-        return;                                                                      \
+#define CHECK_COMPUTEPASS                                     \
+    if (!((Pass *)computePass)->inProgress) {                 \
+        SDL_assert_release(!"Compute pass not in progress!"); \
+        return;                                               \
     }
 
 #define CHECK_COMPUTE_PIPELINE_BOUND                                                        \
     if (!((CommandBufferCommonHeader *)COMPUTEPASS_COMMAND_BUFFER)->computePipelineBound) { \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Compute pipeline not bound!");          \
+        SDL_assert_release(!"Compute pipeline not bound!");                                 \
         return;                                                                             \
     }
 
-#define CHECK_COPYPASS                                                            \
-    if (!((Pass *)copyPass)->inProgress) {                                        \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Copy pass not in progress!"); \
-        return;                                                                   \
+#define CHECK_COPYPASS                                     \
+    if (!((Pass *)copyPass)->inProgress) {                 \
+        SDL_assert_release(!"Copy pass not in progress!"); \
+        return;                                            \
     }
 
 #define COMMAND_BUFFER_DEVICE \
@@ -136,7 +134,7 @@ static SDL_GpuBackend SDL_GpuSelectBackend(SDL_VideoDevice *_this, SDL_GpuBacken
             }
         }
 
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_HINT_GPU_BACKEND %s unsupported!", gpudriver);
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "SDL_HINT_GPU_BACKEND %s unsupported!", gpudriver);
         return SDL_GPU_BACKEND_INVALID;
     }
 
@@ -147,7 +145,7 @@ static SDL_GpuBackend SDL_GpuSelectBackend(SDL_VideoDevice *_this, SDL_GpuBacken
                 return backends[i]->backendflag;
             }
         }
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "No preferred SDL_Gpu backend found!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "No preferred SDL_Gpu backend found!");
     }
 
     /* ... Fallback backends */
@@ -157,7 +155,7 @@ static SDL_GpuBackend SDL_GpuSelectBackend(SDL_VideoDevice *_this, SDL_GpuBacken
         }
     }
 
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "No supported SDL_Gpu backend found!");
+    SDL_LogError(SDL_LOG_CATEGORY_GPU, "No supported SDL_Gpu backend found!");
     return SDL_GPU_BACKEND_INVALID;
 }
 
@@ -183,6 +181,7 @@ SDL_GpuDevice *SDL_GpuCreateDevice(
                 result = backends[i]->CreateDevice(debugMode, preferLowPower);
                 if (result != NULL) {
                     result->backend = backends[i]->backendflag;
+                    result->debugMode = debugMode;
                     break;
                 }
             }
@@ -248,10 +247,7 @@ Uint32 SDL_GpuTextureFormatTexelBlockSize(
     case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_SFLOAT:
         return 16;
     default:
-        /* FIXME DEBUGMODE */
-        SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
-            "Unrecognized TextureFormat!");
+        SDL_assert_release(!"Unrecognized TextureFormat!");
         return 0;
     }
 }
@@ -296,12 +292,13 @@ SDL_GpuComputePipeline *SDL_GpuCreateComputePipeline(
         return NULL;
     }
 
-    /* FIXME DEBUGMODE */
-    if (computePipelineCreateInfo->threadCountX == 0 ||
-        computePipelineCreateInfo->threadCountY == 0 ||
-        computePipelineCreateInfo->threadCountZ == 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "All ComputePipeline threadCount dimensions must be at least 1!");
-        return NULL;
+    if (device->debugMode) {
+        if (computePipelineCreateInfo->threadCountX == 0 ||
+            computePipelineCreateInfo->threadCountY == 0 ||
+            computePipelineCreateInfo->threadCountZ == 0) {
+            SDL_assert_release(!"All ComputePipeline threadCount dimensions must be at least 1!");
+            return NULL;
+        }
     }
 
     if (computePipelineCreateInfo->format == SDL_GPU_SHADERFORMAT_SPIRV &&
@@ -355,7 +352,7 @@ SDL_GpuGraphicsPipeline *SDL_GpuCreateGraphicsPipeline(
         }
 
         SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Requested unsupported depth format %d, falling back to format %d!",
             graphicsPipelineCreateInfo->attachmentInfo.depthStencilFormat,
             newFormat);
@@ -446,7 +443,7 @@ SDL_GpuTexture *SDL_GpuCreateTexture(
             }
 
             SDL_LogWarn(
-                SDL_LOG_CATEGORY_APPLICATION,
+                SDL_LOG_CATEGORY_GPU,
                 "Requested unsupported depth format %d, falling back to format %d!",
                 textureCreateInfo->format,
                 newFormat);
@@ -540,7 +537,10 @@ void SDL_GpuInsertDebugLabel(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
+
     COMMAND_BUFFER_DEVICE->InsertDebugLabel(
         commandBuffer,
         text);
@@ -559,7 +559,10 @@ void SDL_GpuPushDebugGroup(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
+
     COMMAND_BUFFER_DEVICE->PushDebugGroup(
         commandBuffer,
         name);
@@ -573,7 +576,10 @@ void SDL_GpuPopDebugGroup(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
+
     COMMAND_BUFFER_DEVICE->PopDebugGroup(
         commandBuffer);
 }
@@ -727,7 +733,10 @@ void SDL_GpuPushVertexUniformData(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
+
     COMMAND_BUFFER_DEVICE->PushVertexUniformData(
         commandBuffer,
         slotIndex,
@@ -750,7 +759,10 @@ void SDL_GpuPushFragmentUniformData(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
+
     COMMAND_BUFFER_DEVICE->PushFragmentUniformData(
         commandBuffer,
         slotIndex,
@@ -773,7 +785,10 @@ void SDL_GpuPushComputeUniformData(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
+
     COMMAND_BUFFER_DEVICE->PushComputeUniformData(
         commandBuffer,
         slotIndex,
@@ -800,8 +815,10 @@ SDL_GpuRenderPass *SDL_GpuBeginRenderPass(
         return NULL;
     }
 
-    CHECK_COMMAND_BUFFER_RETURN_NULL
-    CHECK_ANY_PASS_IN_PROGRESS
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER_RETURN_NULL
+        CHECK_ANY_PASS_IN_PROGRESS
+    }
 
     COMMAND_BUFFER_DEVICE->BeginRenderPass(
         commandBuffer,
@@ -850,7 +867,10 @@ void SDL_GpuSetViewport(
         return;
     }
 
-    CHECK_RENDERPASS
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+    }
+
     RENDERPASS_DEVICE->SetViewport(
         RENDERPASS_COMMAND_BUFFER,
         viewport);
@@ -869,7 +889,10 @@ void SDL_GpuSetScissor(
         return;
     }
 
-    CHECK_RENDERPASS
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+    }
+
     RENDERPASS_DEVICE->SetScissor(
         RENDERPASS_COMMAND_BUFFER,
         scissor);
@@ -890,8 +913,11 @@ void SDL_GpuBindVertexBuffers(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindVertexBuffers(
         RENDERPASS_COMMAND_BUFFER,
         firstBinding,
@@ -913,8 +939,11 @@ void SDL_GpuBindIndexBuffer(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindIndexBuffer(
         RENDERPASS_COMMAND_BUFFER,
         pBinding,
@@ -936,8 +965,11 @@ void SDL_GpuBindVertexSamplers(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindVertexSamplers(
         RENDERPASS_COMMAND_BUFFER,
         firstSlot,
@@ -960,8 +992,11 @@ void SDL_GpuBindVertexStorageTextures(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindVertexStorageTextures(
         RENDERPASS_COMMAND_BUFFER,
         firstSlot,
@@ -984,8 +1019,11 @@ void SDL_GpuBindVertexStorageBuffers(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindVertexStorageBuffers(
         RENDERPASS_COMMAND_BUFFER,
         firstSlot,
@@ -1008,8 +1046,11 @@ void SDL_GpuBindFragmentSamplers(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindFragmentSamplers(
         RENDERPASS_COMMAND_BUFFER,
         firstSlot,
@@ -1032,8 +1073,11 @@ void SDL_GpuBindFragmentStorageTextures(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindFragmentStorageTextures(
         RENDERPASS_COMMAND_BUFFER,
         firstSlot,
@@ -1056,8 +1100,11 @@ void SDL_GpuBindFragmentStorageBuffers(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->BindFragmentStorageBuffers(
         RENDERPASS_COMMAND_BUFFER,
         firstSlot,
@@ -1077,8 +1124,11 @@ void SDL_GpuDrawIndexedPrimitives(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->DrawIndexedPrimitives(
         RENDERPASS_COMMAND_BUFFER,
         baseVertex,
@@ -1097,8 +1147,11 @@ void SDL_GpuDrawPrimitives(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->DrawPrimitives(
         RENDERPASS_COMMAND_BUFFER,
         vertexStart,
@@ -1121,8 +1174,11 @@ void SDL_GpuDrawPrimitivesIndirect(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->DrawPrimitivesIndirect(
         RENDERPASS_COMMAND_BUFFER,
         buffer,
@@ -1147,8 +1203,11 @@ void SDL_GpuDrawIndexedPrimitivesIndirect(
         return;
     }
 
-    CHECK_RENDERPASS
-    CHECK_GRAPHICS_PIPELINE_BOUND
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+        CHECK_GRAPHICS_PIPELINE_BOUND
+    }
+
     RENDERPASS_DEVICE->DrawIndexedPrimitivesIndirect(
         RENDERPASS_COMMAND_BUFFER,
         buffer,
@@ -1167,7 +1226,10 @@ void SDL_GpuEndRenderPass(
         return;
     }
 
-    CHECK_RENDERPASS
+    if (RENDERPASS_DEVICE->debugMode) {
+        CHECK_RENDERPASS
+    }
+
     RENDERPASS_DEVICE->EndRenderPass(
         RENDERPASS_COMMAND_BUFFER);
 
@@ -1200,8 +1262,11 @@ SDL_GpuComputePass *SDL_GpuBeginComputePass(
         return NULL;
     }
 
-    CHECK_COMMAND_BUFFER_RETURN_NULL
-    CHECK_ANY_PASS_IN_PROGRESS
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER_RETURN_NULL
+        CHECK_ANY_PASS_IN_PROGRESS
+    }
+
     COMMAND_BUFFER_DEVICE->BeginComputePass(
         commandBuffer,
         storageTextureBindings,
@@ -1229,7 +1294,10 @@ void SDL_GpuBindComputePipeline(
         return;
     }
 
-    CHECK_COMPUTEPASS
+    if (COMPUTEPASS_DEVICE->debugMode) {
+        CHECK_COMPUTEPASS
+    }
+
     COMPUTEPASS_DEVICE->BindComputePipeline(
         COMPUTEPASS_COMMAND_BUFFER,
         computePipeline);
@@ -1253,8 +1321,11 @@ void SDL_GpuBindComputeStorageTextures(
         return;
     }
 
-    CHECK_COMPUTEPASS
-    CHECK_COMPUTE_PIPELINE_BOUND
+    if (COMPUTEPASS_DEVICE->debugMode) {
+        CHECK_COMPUTEPASS
+        CHECK_COMPUTE_PIPELINE_BOUND
+    }
+
     COMPUTEPASS_DEVICE->BindComputeStorageTextures(
         COMPUTEPASS_COMMAND_BUFFER,
         firstSlot,
@@ -1277,8 +1348,11 @@ void SDL_GpuBindComputeStorageBuffers(
         return;
     }
 
-    CHECK_COMPUTEPASS
-    CHECK_COMPUTE_PIPELINE_BOUND
+    if (COMPUTEPASS_DEVICE->debugMode) {
+        CHECK_COMPUTEPASS
+        CHECK_COMPUTE_PIPELINE_BOUND
+    }
+
     COMPUTEPASS_DEVICE->BindComputeStorageBuffers(
         COMPUTEPASS_COMMAND_BUFFER,
         firstSlot,
@@ -1297,8 +1371,11 @@ void SDL_GpuDispatchCompute(
         return;
     }
 
-    CHECK_COMPUTEPASS
-    CHECK_COMPUTE_PIPELINE_BOUND
+    if (COMPUTEPASS_DEVICE->debugMode) {
+        CHECK_COMPUTEPASS
+        CHECK_COMPUTE_PIPELINE_BOUND
+    }
+
     COMPUTEPASS_DEVICE->DispatchCompute(
         COMPUTEPASS_COMMAND_BUFFER,
         groupCountX,
@@ -1316,7 +1393,10 @@ void SDL_GpuEndComputePass(
         return;
     }
 
-    CHECK_COMPUTEPASS
+    if (COMPUTEPASS_DEVICE->debugMode) {
+        CHECK_COMPUTEPASS
+    }
+
     COMPUTEPASS_DEVICE->EndComputePass(
         COMPUTEPASS_COMMAND_BUFFER);
 
@@ -1421,8 +1501,11 @@ SDL_GpuCopyPass *SDL_GpuBeginCopyPass(
         return NULL;
     }
 
-    CHECK_COMMAND_BUFFER_RETURN_NULL
-    CHECK_ANY_PASS_IN_PROGRESS
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER_RETURN_NULL
+        CHECK_ANY_PASS_IN_PROGRESS
+    }
+
     COMMAND_BUFFER_DEVICE->BeginCopyPass(
         commandBuffer);
 
@@ -1450,7 +1533,10 @@ void SDL_GpuUploadToTexture(
         return;
     }
 
-    CHECK_COPYPASS
+    if (COPYPASS_DEVICE->debugMode) {
+        CHECK_COPYPASS
+    }
+
     COPYPASS_DEVICE->UploadToTexture(
         COPYPASS_COMMAND_BUFFER,
         source,
@@ -1618,7 +1704,10 @@ void SDL_GpuEndCopyPass(
         return;
     }
 
-    CHECK_COPYPASS
+    if (COPYPASS_DEVICE->debugMode) {
+        CHECK_COPYPASS
+    }
+
     COPYPASS_DEVICE->EndCopyPass(
         COPYPASS_COMMAND_BUFFER);
 
@@ -1645,7 +1734,9 @@ void SDL_GpuBlit(
         return;
     }
 
-    CHECK_COMMAND_BUFFER
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+    }
     COMMAND_BUFFER_DEVICE->Blit(
         commandBuffer,
         source,
@@ -1773,7 +1864,10 @@ SDL_GpuTexture *SDL_GpuAcquireSwapchainTexture(
         return NULL;
     }
 
-    CHECK_COMMAND_BUFFER_RETURN_NULL
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER_RETURN_NULL
+    }
+
     return COMMAND_BUFFER_DEVICE->AcquireSwapchainTexture(
         commandBuffer,
         window,
@@ -1784,21 +1878,22 @@ SDL_GpuTexture *SDL_GpuAcquireSwapchainTexture(
 void SDL_GpuSubmit(
     SDL_GpuCommandBuffer *commandBuffer)
 {
+    CommandBufferCommonHeader *commandBufferHeader = (CommandBufferCommonHeader *)commandBuffer;
+
     if (commandBuffer == NULL) {
         SDL_InvalidParamError("commandBuffer");
         return;
     }
 
-    CHECK_COMMAND_BUFFER
-    CommandBufferCommonHeader *commandBufferHeader = (CommandBufferCommonHeader *)commandBuffer;
-
-    /* FIXME DEBUGMODE */
-    if (
-        commandBufferHeader->renderPass.inProgress ||
-        commandBufferHeader->computePass.inProgress ||
-        commandBufferHeader->copyPass.inProgress) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot submit command buffer while a pass is in progress!");
-        return;
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER
+        if (
+            commandBufferHeader->renderPass.inProgress ||
+            commandBufferHeader->computePass.inProgress ||
+            commandBufferHeader->copyPass.inProgress) {
+            SDL_assert_release(!"Cannot submit command buffer while a pass is in progress!");
+            return;
+        }
     }
 
     commandBufferHeader->submitted = SDL_TRUE;
@@ -1810,21 +1905,22 @@ void SDL_GpuSubmit(
 SDL_GpuFence *SDL_GpuSubmitAndAcquireFence(
     SDL_GpuCommandBuffer *commandBuffer)
 {
+    CommandBufferCommonHeader *commandBufferHeader = (CommandBufferCommonHeader *)commandBuffer;
+
     if (commandBuffer == NULL) {
         SDL_InvalidParamError("commandBuffer");
         return NULL;
     }
 
-    CHECK_COMMAND_BUFFER_RETURN_NULL
-    CommandBufferCommonHeader *commandBufferHeader = (CommandBufferCommonHeader *)commandBuffer;
-
-    /* FIXME DEBUGMODE */
-    if (
-        commandBufferHeader->renderPass.inProgress ||
-        commandBufferHeader->computePass.inProgress ||
-        commandBufferHeader->copyPass.inProgress) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot submit command buffer while a pass is in progress!");
-        return NULL;
+    if (COMMAND_BUFFER_DEVICE->debugMode) {
+        CHECK_COMMAND_BUFFER_RETURN_NULL
+        if (
+            commandBufferHeader->renderPass.inProgress ||
+            commandBufferHeader->computePass.inProgress ||
+            commandBufferHeader->copyPass.inProgress) {
+            SDL_assert_release(!"Cannot submit command buffer while a pass is in progress!");
+            return NULL;
+        }
     }
 
     commandBufferHeader->submitted = SDL_TRUE;

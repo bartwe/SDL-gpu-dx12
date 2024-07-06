@@ -1435,17 +1435,17 @@ static inline void LogVulkanResultAsError(
 {
     if (result != VK_SUCCESS) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "%s: %s",
             vulkanFunctionName,
             VkErrorMessages(result));
     }
 }
 
-#define VULKAN_ERROR_CHECK(res, fn, ret)                                                \
-    if (res != VK_SUCCESS) {                                                            \
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s %s", #fn, VkErrorMessages(res)); \
-        return ret;                                                                     \
+#define VULKAN_ERROR_CHECK(res, fn, ret)                                        \
+    if (res != VK_SUCCESS) {                                                    \
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "%s %s", #fn, VkErrorMessages(res)); \
+        return ret;                                                             \
     }
 
 /* Utility */
@@ -2050,7 +2050,7 @@ static Uint8 VULKAN_INTERNAL_BindResourceMemory(
 
     if ((buffer == VK_NULL_HANDLE && image == VK_NULL_HANDLE) ||
         (buffer != VK_NULL_HANDLE && image != VK_NULL_HANDLE)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "BindResourceMemory must be given either a VulkanBuffer or a VulkanTexture");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "BindResourceMemory must be given either a VulkanBuffer or a VulkanTexture");
         return 0;
     }
 
@@ -2278,7 +2278,7 @@ static Uint8 VULKAN_INTERNAL_BindMemoryForImage(
         memoryTypeIndex = 0;
         requiredMemoryPropertyFlags = 0;
 
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Out of device-local memory, allocating textures on host-local memory!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Out of device-local memory, allocating textures on host-local memory!");
 
         while (VULKAN_INTERNAL_FindImageMemoryRequirements(
             renderer,
@@ -2339,7 +2339,7 @@ static Uint8 VULKAN_INTERNAL_BindMemoryForBuffer(
         ignoredMemoryPropertyFlags |=
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized buffer type!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized buffer type!");
         return 0;
     }
 
@@ -2375,7 +2375,7 @@ static Uint8 VULKAN_INTERNAL_BindMemoryForBuffer(
 
         if (type == VULKAN_BUFFER_TYPE_GPU) {
             if (!renderer->outOfDeviceLocalMemoryWarning) {
-                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Out of device-local memory, allocating buffers on host-local memory, expect degraded performance!");
+                SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Out of device-local memory, allocating buffers on host-local memory, expect degraded performance!");
                 renderer->outOfDeviceLocalMemoryWarning = 1;
             }
         } else if (type == VULKAN_BUFFER_TYPE_UNIFORM) {
@@ -2384,7 +2384,7 @@ static Uint8 VULKAN_INTERNAL_BindMemoryForBuffer(
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
             if (!renderer->outofBARMemoryWarning) {
-                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Out of BAR memory, allocating uniform buffers on host-local memory, expect degraded performance!");
+                SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Out of BAR memory, allocating uniform buffers on host-local memory, expect degraded performance!");
                 renderer->outofBARMemoryWarning = 1;
             }
         } else if (type == VULKAN_BUFFER_TYPE_TRANSFER) {
@@ -2393,7 +2393,7 @@ static Uint8 VULKAN_INTERNAL_BindMemoryForBuffer(
                 VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 
             if (!renderer->integratedMemoryNotification) {
-                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Integrated memory detected, allocating TransferBuffers on device-local memory!");
+                SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Integrated memory detected, allocating TransferBuffers on device-local memory!");
                 renderer->integratedMemoryNotification = 1;
             }
         }
@@ -2648,7 +2648,7 @@ static void VULKAN_INTERNAL_BufferMemoryBarrier(
         srcStages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
         memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized buffer source barrier type!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized buffer source barrier type!");
         return;
     }
 
@@ -2677,7 +2677,7 @@ static void VULKAN_INTERNAL_BufferMemoryBarrier(
         dstStages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
         memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized buffer destination barrier type!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized buffer destination barrier type!");
         return;
     }
 
@@ -2755,7 +2755,7 @@ static void VULKAN_INTERNAL_ImageMemoryBarrier(
         memoryBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         memoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized texture source barrier type!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized texture source barrier type!");
         return;
     }
 
@@ -2800,7 +2800,7 @@ static void VULKAN_INTERNAL_ImageMemoryBarrier(
         memoryBarrier.dstAccessMask = 0;
         memoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized texture destination barrier type!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized texture destination barrier type!");
         return;
     }
 
@@ -2837,7 +2837,7 @@ static VulkanBufferUsageMode VULKAN_INTERNAL_DefaultBufferUsageMode(
     } else if (buffer->usageFlags & SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE_BIT) {
         return VULKAN_BUFFER_USAGE_MODE_COMPUTE_STORAGE_READ_WRITE;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Buffer has no default usage mode!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Buffer has no default usage mode!");
         return VULKAN_BUFFER_USAGE_MODE_VERTEX_READ;
     }
 }
@@ -2861,7 +2861,7 @@ static VulkanTextureUsageMode VULKAN_INTERNAL_DefaultTextureUsageMode(
     } else if (texture->usageFlags & SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE_BIT) {
         return VULKAN_TEXTURE_USAGE_MODE_COMPUTE_STORAGE_READ_WRITE;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Texture has no default usage mode!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Texture has no default usage mode!");
         return VULKAN_TEXTURE_USAGE_MODE_SAMPLER;
     }
 }
@@ -3957,7 +3957,7 @@ static VulkanBufferHandle *VULKAN_INTERNAL_CreateBufferHandle(
         type);
 
     if (buffer == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create buffer!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create buffer!");
         return NULL;
     }
 
@@ -3986,7 +3986,7 @@ static VulkanBufferContainer *VULKAN_INTERNAL_CreateBufferContainer(
         type);
 
     if (bufferHandle == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create buffer container!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create buffer container!");
         return NULL;
     }
 
@@ -4070,7 +4070,7 @@ static void VULKAN_INTERNAL_CreateSliceView(
         LogVulkanResultAsError(
             "vkCreateImageView",
             vulkanResult);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create color attachment image view");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create color attachment image view");
         *pView = (VkImageView)VK_NULL_HANDLE;
         return;
     }
@@ -4098,7 +4098,7 @@ static Uint8 VULKAN_INTERNAL_QuerySwapchainSupport(
     outputDetails->presentModesLength = 0;
 
     if (!supportsPresent) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "This surface does not support presenting!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "This surface does not support presenting!");
         return 0;
     }
 
@@ -4110,7 +4110,7 @@ static Uint8 VULKAN_INTERNAL_QuerySwapchainSupport(
     VULKAN_ERROR_CHECK(result, vkGetPhysicalDeviceSurfaceCapabilitiesKHR, 0)
 
     if (!(outputDetails->capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Opaque presentation unsupported! Expect weird transparency bugs!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Opaque presentation unsupported! Expect weird transparency bugs!");
     }
 
     result = renderer->vkGetPhysicalDeviceSurfaceFormatsKHR(
@@ -4145,7 +4145,7 @@ static Uint8 VULKAN_INTERNAL_QuerySwapchainSupport(
             outputDetails->formats);
         if (result != VK_SUCCESS) {
             SDL_LogError(
-                SDL_LOG_CATEGORY_APPLICATION,
+                SDL_LOG_CATEGORY_GPU,
                 "vkGetPhysicalDeviceSurfaceFormatsKHR: %s",
                 VkErrorMessages(result));
 
@@ -4172,7 +4172,7 @@ static Uint8 VULKAN_INTERNAL_QuerySwapchainSupport(
             outputDetails->presentModes);
         if (result != VK_SUCCESS) {
             SDL_LogError(
-                SDL_LOG_CATEGORY_APPLICATION,
+                SDL_LOG_CATEGORY_GPU,
                 "vkGetPhysicalDeviceSurfacePresentModesKHR: %s",
                 VkErrorMessages(result));
 
@@ -4251,7 +4251,7 @@ static SDL_bool VULKAN_INTERNAL_CreateSwapchain(
             &swapchainData->surface) < 0) {
         SDL_free(swapchainData);
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Vulkan_CreateSurface failed: %s",
             SDL_GetError());
         return SDL_FALSE;
@@ -4273,7 +4273,7 @@ static SDL_bool VULKAN_INTERNAL_CreateSwapchain(
             SDL_free(swapchainSupportDetails.presentModes);
         }
         SDL_free(swapchainData);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Device does not support swap chain creation");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Device does not support swap chain creation");
         return SDL_FALSE;
     }
 
@@ -4331,7 +4331,7 @@ static SDL_bool VULKAN_INTERNAL_CreateSwapchain(
             }
 
             SDL_free(swapchainData);
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Device does not support requested colorspace!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Device does not support requested colorspace!");
             return SDL_FALSE;
         }
     }
@@ -4354,7 +4354,7 @@ static SDL_bool VULKAN_INTERNAL_CreateSwapchain(
         }
 
         SDL_free(swapchainData);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Device does not support requested present mode!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Device does not support requested present mode!");
         return SDL_FALSE;
     }
 
@@ -4392,7 +4392,7 @@ static SDL_bool VULKAN_INTERNAL_CreateSwapchain(
                 SDL_free(swapchainSupportDetails.presentModes);
             }
             SDL_free(swapchainData);
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "No fallback swapchain size available!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "No fallback swapchain size available!");
             return SDL_FALSE;
         }
     }
@@ -4779,7 +4779,7 @@ static VkDescriptorSet VULKAN_INTERNAL_FetchDescriptorSet(
                 descriptorSetPool->nextPoolSize,
                 &descriptorSetPool->descriptorPools[descriptorSetPool->descriptorPoolCount - 1])) {
             SDL_UnlockMutex(descriptorSetPool->lock);
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create descriptor pool!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create descriptor pool!");
             return VK_NULL_HANDLE;
         }
 
@@ -4796,7 +4796,7 @@ static VkDescriptorSet VULKAN_INTERNAL_FetchDescriptorSet(
                 descriptorSetPool->nextPoolSize,
                 descriptorSetPool->inactiveDescriptorSets)) {
             SDL_UnlockMutex(descriptorSetPool->lock);
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate descriptor sets!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to allocate descriptor sets!");
             return VK_NULL_HANDLE;
         }
 
@@ -5460,7 +5460,7 @@ static VulkanTextureHandle *VULKAN_INTERNAL_CreateTextureHandle(
         isMSAAColorTarget);
 
     if (texture == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create texture!");
         return NULL;
     }
 
@@ -5566,7 +5566,7 @@ static VulkanTexture *VULKAN_INTERNAL_CreateTexture(
             texture->image,
             NULL);
 
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unable to bind memory for texture!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unable to bind memory for texture!");
         return NULL;
     }
 
@@ -5602,7 +5602,7 @@ static VulkanTexture *VULKAN_INTERNAL_CreateTexture(
 
     if (vulkanResult != VK_SUCCESS) {
         LogVulkanResultAsError("vkCreateImageView", vulkanResult);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture image view");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create texture image view");
         return NULL;
     }
 
@@ -6449,7 +6449,7 @@ static SDL_GpuGraphicsPipeline *VULKAN_CreateGraphicsPipeline(
         SDL_stack_free(colorBlendAttachmentStates);
         SDL_stack_free(divisorDescriptions);
         SDL_free(graphicsPipeline);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize pipeline resource layout!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to initialize pipeline resource layout!");
         return NULL;
     }
 
@@ -6497,7 +6497,7 @@ static SDL_GpuGraphicsPipeline *VULKAN_CreateGraphicsPipeline(
     if (vulkanResult != VK_SUCCESS) {
         SDL_free(graphicsPipeline);
         LogVulkanResultAsError("vkCreateGraphicsPipelines", vulkanResult);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create graphics pipeline!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create graphics pipeline!");
         return NULL;
     }
 
@@ -6519,7 +6519,7 @@ static SDL_GpuComputePipeline *VULKAN_CreateComputePipeline(
     VulkanComputePipeline *vulkanComputePipeline;
 
     if (pipelineCreateInfo->format != SDL_GPU_SHADERFORMAT_SPIRV) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Incompatible shader format for Vulkan!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Incompatible shader format for Vulkan!");
         return NULL;
     }
 
@@ -6539,7 +6539,7 @@ static SDL_GpuComputePipeline *VULKAN_CreateComputePipeline(
     if (vulkanResult != VK_SUCCESS) {
         SDL_free(vulkanComputePipeline);
         LogVulkanResultAsError("vkCreateShaderModule", vulkanResult);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create compute pipeline!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create compute pipeline!");
         return NULL;
     }
 
@@ -6598,7 +6598,7 @@ static SDL_GpuComputePipeline *VULKAN_CreateComputePipeline(
             NULL);
 
         LogVulkanResultAsError("vkCreateComputePipeline", vulkanResult);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create compute pipeline!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create compute pipeline!");
         return NULL;
     }
 
@@ -6663,7 +6663,7 @@ static SDL_GpuShader *VULKAN_CreateShader(
     size_t entryPointNameLength;
 
     if (shaderCreateInfo->format != SDL_GPU_SHADERFORMAT_SPIRV) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Incompatible shader format for Vulkan");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Incompatible shader format for Vulkan");
         return NULL;
     }
 
@@ -6683,7 +6683,7 @@ static SDL_GpuShader *VULKAN_CreateShader(
     if (vulkanResult != VK_SUCCESS) {
         SDL_free(vulkanShader);
         LogVulkanResultAsError("vkCreateShaderModule", vulkanResult);
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create shader module!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create shader module!");
         return NULL;
     }
 
@@ -6768,7 +6768,7 @@ static SDL_GpuTexture *VULKAN_CreateTexture(
         SDL_FALSE);
 
     if (textureHandle == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture container!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create texture container!");
         return NULL;
     }
 
@@ -7526,7 +7526,7 @@ static void VULKAN_INTERNAL_PushUniformData(
         }
         uniformBuffer = commandBuffer->computeUniformBuffers[slotIndex];
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized shader stage!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized shader stage!");
         return;
     }
 
@@ -7551,7 +7551,7 @@ static void VULKAN_INTERNAL_PushUniformData(
             commandBuffer->computeUniformBuffers[slotIndex] = uniformBuffer;
             commandBuffer->needNewComputeUniformDescriptorSet = SDL_TRUE;
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized shader stage!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized shader stage!");
             return;
         }
     }
@@ -7577,7 +7577,7 @@ static void VULKAN_INTERNAL_PushUniformData(
     } else if (uniformBufferStage == VULKAN_UNIFORM_BUFFER_STAGE_COMPUTE) {
         commandBuffer->needNewComputeUniformOffsets = SDL_TRUE;
     } else {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized shader stage!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized shader stage!");
         return;
     }
 }
@@ -7623,7 +7623,7 @@ static void VULKAN_BeginRenderPass(
         }
 
         if (!textureContainer->activeTextureHandle->vulkanTexture->isRenderTarget) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Color attachment texture was not designated as a target!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Color attachment texture was not designated as a target!");
             return;
         }
     }
@@ -7645,7 +7645,7 @@ static void VULKAN_BeginRenderPass(
         }
 
         if (!textureContainer->activeTextureHandle->vulkanTexture->isRenderTarget) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Depth stencil attachment texture was not designated as a target!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Depth stencil attachment texture was not designated as a target!");
             return;
         }
     }
@@ -9241,7 +9241,7 @@ static VulkanCommandPool *VULKAN_INTERNAL_FetchCommandPool(
         &vulkanCommandPool->commandPool);
 
     if (vulkanResult != VK_SUCCESS) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create command pool!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create command pool!");
         LogVulkanResultAsError("vkCreateCommandPool", vulkanResult);
         return NULL;
     }
@@ -9274,7 +9274,7 @@ static VulkanCommandBuffer *VULKAN_INTERNAL_GetInactiveCommandBufferFromPool(
     VulkanCommandBuffer *commandBuffer;
 
     if (commandPool == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to fetch command pool!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to fetch command pool!");
         return NULL;
     }
 
@@ -9308,7 +9308,7 @@ static SDL_GpuCommandBuffer *VULKAN_AcquireCommandBuffer(
     SDL_UnlockMutex(renderer->acquireCommandBufferLock);
 
     if (commandBuffer == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to acquire command buffer!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to acquire command buffer!");
         return NULL;
     }
 
@@ -9586,12 +9586,12 @@ static SDL_bool VULKAN_ClaimWindow(
 
             return 1;
         } else {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create swapchain, failed to claim window!");
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Could not create swapchain, failed to claim window!");
             SDL_free(windowData);
             return 0;
         }
     } else {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Window already claimed!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Window already claimed!");
         return 0;
     }
 }
@@ -9693,7 +9693,7 @@ static SDL_GpuTexture *VULKAN_AcquireSwapchainTexture(
         swapchainData = windowData->swapchainData;
 
         if (swapchainData == NULL) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Failed to recreate swapchain!");
+            SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Failed to recreate swapchain!");
             return NULL;
         }
     }
@@ -9739,7 +9739,7 @@ static SDL_GpuTexture *VULKAN_AcquireSwapchainTexture(
         swapchainData = windowData->swapchainData;
 
         if (swapchainData == NULL) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Failed to recreate swapchain!");
+            SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Failed to recreate swapchain!");
             return NULL;
         }
 
@@ -9752,7 +9752,7 @@ static SDL_GpuTexture *VULKAN_AcquireSwapchainTexture(
             &swapchainImageIndex);
 
         if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Failed to acquire swapchain texture!");
+            SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Failed to acquire swapchain texture!");
             return NULL;
         }
     }
@@ -9841,12 +9841,12 @@ static SDL_GpuTextureFormat VULKAN_GetSwapchainTextureFormat(
     WindowData *windowData = VULKAN_INTERNAL_FetchWindowData(window);
 
     if (windowData == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot get swapchain format, window has not been claimed!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot get swapchain format, window has not been claimed!");
         return 0;
     }
 
     if (windowData->swapchainData == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot get swapchain format, swapchain is currently invalid!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot get swapchain format, swapchain is currently invalid!");
         return 0;
     }
 
@@ -9870,7 +9870,7 @@ static SDL_GpuTextureFormat VULKAN_GetSwapchainTextureFormat(
         return SDL_GPU_TEXTUREFORMAT_R10G10B10A2;
 
     default:
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unrecognized swapchain format!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized swapchain format!");
         return 0;
     }
 }
@@ -9884,17 +9884,17 @@ static SDL_bool VULKAN_SetSwapchainParameters(
     WindowData *windowData = VULKAN_INTERNAL_FetchWindowData(window);
 
     if (windowData == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot set swapchain parameters on unclaimed window!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot set swapchain parameters on unclaimed window!");
         return SDL_FALSE;
     }
 
     if (!VULKAN_SupportsSwapchainComposition(driverData, window, swapchainComposition)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Swapchain composition not supported!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Swapchain composition not supported!");
         return SDL_FALSE;
     }
 
     if (!VULKAN_SupportsPresentMode(driverData, window, presentMode)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Present mode not supported!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Present mode not supported!");
         return SDL_FALSE;
     }
 
@@ -10438,7 +10438,7 @@ static Uint8 VULKAN_INTERNAL_DefragmentMemory(
 
     commandBuffer = (VulkanCommandBuffer *)VULKAN_AcquireCommandBuffer((SDL_GpuRenderer *)renderer);
     if (commandBuffer == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create defrag command buffer!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create defrag command buffer!");
         return 0;
     }
     commandBuffer->isDefrag = 1;
@@ -10463,7 +10463,7 @@ static Uint8 VULKAN_INTERNAL_DefragmentMemory(
                 currentRegion->vulkanBuffer->type);
 
             if (newBuffer == NULL) {
-                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create defrag buffer!");
+                SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create defrag buffer!");
                 return 0;
             }
 
@@ -10540,7 +10540,7 @@ static Uint8 VULKAN_INTERNAL_DefragmentMemory(
                 currentRegion->vulkanTexture->isMSAAColorTarget);
 
             if (newTexture == NULL) {
-                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create defrag texture!");
+                SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create defrag texture!");
                 return 0;
             }
 
@@ -10882,7 +10882,7 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(
     originalInstanceExtensionNames = SDL_Vulkan_GetInstanceExtensions(&instanceExtensionCount);
     if (!originalInstanceExtensionNames) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "SDL_Vulkan_GetInstanceExtensions(): getExtensionCount: %s",
             SDL_GetError());
 
@@ -10916,7 +10916,7 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(
             &renderer->supportsDebugUtils,
             &renderer->supportsColorspace)) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "Required Vulkan instance extensions not supported");
 
         SDL_stack_free((char *)instanceExtensionNames);
@@ -10929,7 +10929,7 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(
             VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     } else {
         SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "%s is not supported!",
             VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
@@ -10952,10 +10952,10 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(
         if (!VULKAN_INTERNAL_CheckValidationLayers(
                 layerNames,
                 createInfo.enabledLayerCount)) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Validation layers not found, continuing without validation");
+            SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Validation layers not found, continuing without validation");
             createInfo.enabledLayerCount = 0;
         } else {
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Validation layers enabled, expect debug level performance!");
+            SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Validation layers enabled, expect debug level performance!");
         }
     } else {
         createInfo.enabledLayerCount = 0;
@@ -10964,7 +10964,7 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(
     vulkanResult = vkCreateInstance(&createInfo, NULL, &renderer->instance);
     if (vulkanResult != VK_SUCCESS) {
         SDL_LogError(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "vkCreateInstance failed: %s",
             VkErrorMessages(vulkanResult));
 
@@ -11134,7 +11134,7 @@ static Uint8 VULKAN_INTERNAL_DeterminePhysicalDevice(
     VULKAN_ERROR_CHECK(vulkanResult, vkEnumeratePhysicalDevices, 0)
 
     if (physicalDeviceCount == 0) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Failed to find any GPUs with Vulkan support");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Failed to find any GPUs with Vulkan support");
         return 0;
     }
 
@@ -11152,13 +11152,13 @@ static Uint8 VULKAN_INTERNAL_DeterminePhysicalDevice(
      * of telling us that the list is now smaller than expected :shrug:
      */
     if (vulkanResult == VK_INCOMPLETE) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vkEnumeratePhysicalDevices returned VK_INCOMPLETE, will keep trying anyway...");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "vkEnumeratePhysicalDevices returned VK_INCOMPLETE, will keep trying anyway...");
         vulkanResult = VK_SUCCESS;
     }
 
     if (vulkanResult != VK_SUCCESS) {
         SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "vkEnumeratePhysicalDevices failed: %s",
             VkErrorMessages(vulkanResult));
         SDL_stack_free(physicalDevices);
@@ -11336,7 +11336,7 @@ static void VULKAN_INTERNAL_LoadEntryPoints(void)
 
     /* Load Vulkan entry points */
     if (SDL_Vulkan_LoadLibrary(NULL) < 0) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Vulkan: SDL_Vulkan_LoadLibrary failed!");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Vulkan: SDL_Vulkan_LoadLibrary failed!");
         return;
     }
 
@@ -11350,17 +11350,17 @@ static void VULKAN_INTERNAL_LoadEntryPoints(void)
 #endif
     if (vkGetInstanceProcAddr == NULL) {
         SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "SDL_Vulkan_GetVkGetInstanceProcAddr(): %s",
             SDL_GetError());
         return;
     }
 
-#define VULKAN_GLOBAL_FUNCTION(name)                                                                              \
-    name = (PFN_##name)vkGetInstanceProcAddr(VK_NULL_HANDLE, #name);                                              \
-    if (name == NULL) {                                                                                           \
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vkGetInstanceProcAddr(VK_NULL_HANDLE, \"" #name "\") failed"); \
-        return;                                                                                                   \
+#define VULKAN_GLOBAL_FUNCTION(name)                                                                      \
+    name = (PFN_##name)vkGetInstanceProcAddr(VK_NULL_HANDLE, #name);                                      \
+    if (name == NULL) {                                                                                   \
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "vkGetInstanceProcAddr(VK_NULL_HANDLE, \"" #name "\") failed"); \
+        return;                                                                                           \
     }
 #include "SDL_gpu_vulkan_vkfuncs.h"
 }
@@ -11381,13 +11381,13 @@ static SDL_bool VULKAN_INTERNAL_PrepareVulkan(
         SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN);
 
     if (dummyWindowHandle == NULL) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Vulkan: Could not create dummy window");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Vulkan: Could not create dummy window");
         return SDL_FALSE;
     }
 
     if (!VULKAN_INTERNAL_CreateInstance(renderer, dummyWindowHandle)) {
         SDL_DestroyWindow(dummyWindowHandle);
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Vulkan: Could not create Vulkan instance");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Vulkan: Could not create Vulkan instance");
         return SDL_FALSE;
     }
 
@@ -11398,7 +11398,7 @@ static SDL_bool VULKAN_INTERNAL_PrepareVulkan(
             &surface) < 0) {
         SDL_DestroyWindow(dummyWindowHandle);
         SDL_LogWarn(
-            SDL_LOG_CATEGORY_APPLICATION,
+            SDL_LOG_CATEGORY_GPU,
             "SDL_Vulkan_CreateSurface failed: %s",
             SDL_GetError());
         return SDL_FALSE;
@@ -11409,7 +11409,7 @@ static SDL_bool VULKAN_INTERNAL_PrepareVulkan(
 #include "SDL_gpu_vulkan_vkfuncs.h"
 
     if (!VULKAN_INTERNAL_DeterminePhysicalDevice(renderer, surface)) {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Vulkan: Failed to determine a suitable physical device");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Vulkan: Failed to determine a suitable physical device");
 
         SDL_Vulkan_DestroySurface(
             renderer->instance,
@@ -11498,24 +11498,24 @@ static SDL_GpuDevice *VULKAN_CreateDevice(SDL_bool debugMode, SDL_bool preferLow
     renderer->preferLowPower = preferLowPower;
 
     if (!VULKAN_INTERNAL_PrepareVulkan(renderer)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to initialize Vulkan!");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to initialize Vulkan!");
         SDL_free(renderer);
         SDL_Vulkan_UnloadLibrary();
         return NULL;
     }
 
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL_Gpu Driver: Vulkan");
+    SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "SDL_Gpu Driver: Vulkan");
     SDL_LogInfo(
-        SDL_LOG_CATEGORY_APPLICATION,
+        SDL_LOG_CATEGORY_GPU,
         "Vulkan Device: %s",
         renderer->physicalDeviceProperties.properties.deviceName);
     SDL_LogInfo(
-        SDL_LOG_CATEGORY_APPLICATION,
+        SDL_LOG_CATEGORY_GPU,
         "Vulkan Driver: %s %s",
         renderer->physicalDeviceDriverProperties.driverName,
         renderer->physicalDeviceDriverProperties.driverInfo);
     SDL_LogInfo(
-        SDL_LOG_CATEGORY_APPLICATION,
+        SDL_LOG_CATEGORY_GPU,
         "Vulkan Conformance: %u.%u.%u",
         renderer->physicalDeviceDriverProperties.conformanceVersion.major,
         renderer->physicalDeviceDriverProperties.conformanceVersion.minor,
@@ -11523,7 +11523,7 @@ static SDL_GpuDevice *VULKAN_CreateDevice(SDL_bool debugMode, SDL_bool preferLow
 
     if (!VULKAN_INTERNAL_CreateLogicalDevice(
             renderer)) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create logical device");
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create logical device");
         SDL_free(renderer);
         SDL_Vulkan_UnloadLibrary();
         return NULL;
