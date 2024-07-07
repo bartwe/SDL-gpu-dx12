@@ -663,7 +663,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     /* Create the swapchain! */
     res = IDXGIFactory4_CreateSwapChainForHwnd(
         renderer->factory,
-        renderer->commandQueue,
+        (IUnknown*)renderer->commandQueue,
         dxgiHandle,
         &swapchainDesc,
         &fullscreenDesc,
