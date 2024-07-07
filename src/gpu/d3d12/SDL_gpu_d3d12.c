@@ -635,33 +635,38 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     swapchainDesc.Stereo = SDL_FALSE;
     swapchainDesc.SampleDesc.Count = 1;
     swapchainDesc.SampleDesc.Quality = 0;
-    swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
+    swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;// | DXGI_USAGE_UNORDERED_ACCESS | DXGI_USAGE_SHADER_INPUT;
     swapchainDesc.BufferCount = SWAPCHAIN_BUFFER_COUNT;
     swapchainDesc.Scaling = DXGI_SCALING_STRETCH;
     swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
     swapchainDesc.Flags = 0;
 
-    // Initialize the fullscreen descriptor (if needed)
+        // Initialize the fullscreen descriptor (if needed)
     DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreenDesc = {};
     fullscreenDesc.RefreshRate.Numerator = 0;
     fullscreenDesc.RefreshRate.Denominator = 0;
     fullscreenDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     fullscreenDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
 
-    if (renderer->supportsTearing) {
-        swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-    } else {
+   // if (renderer->supportsTearing) {
+     //   swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    //} else {
         swapchainDesc.Flags = 0;
+    //}
+
+    if (!IsWindow(dxgiHandle)) {
+        return SDL_FALSE;
     }
+        
 
     /* Create the swapchain! */
     res = IDXGIFactory4_CreateSwapChainForHwnd(
         renderer->factory,
-        (IUnknown *)renderer->commandQueue,
+        renderer->commandQueue,
         dxgiHandle,
         &swapchainDesc,
-        NULL,
+        &fullscreenDesc,
         NULL,
         &swapchain);
     ERROR_CHECK_RETURN("Could not create swapchain", 0);
@@ -671,7 +676,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
         &D3D_IID_IDXGISwapChain3,
         (void **)&swapchain3);
     IDXGISwapChain1_Release(swapchain);
-    ERROR_CHECK_RETURN("Could not create swapchain", 0);
+    ERROR_CHECK_RETURN("Could not create swapchain3", 0);
 
     IDXGISwapChain3_CheckColorSpaceSupport(
         swapchain3,
