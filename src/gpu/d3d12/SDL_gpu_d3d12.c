@@ -165,6 +165,7 @@ struct D3D12Texture
     ID3D12Resource *resource;
     D3D12_RESOURCE_DESC desc;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+    SDL_bool isRenderTarget;
 };
 
 struct D3D12Renderer
@@ -202,6 +203,9 @@ struct D3D12CommandBuffer
 
     // not owned, head of chain of active windows
     D3D12WindowData *nextWindow;
+
+    Uint32 colorAttachmentCount;
+    D3D12Texture* colorAttachmentTexture[MAX_COLOR_TARGET_BINDINGS];
 };
 
 /* Logging */
@@ -347,23 +351,153 @@ void D3D12_ReleaseGraphicsPipeline(
 
 /* Render Pass */
 
+void D3D12_SetViewport(
+    SDL_GpuCommandBuffer *commandBuffer,
+    SDL_GpuViewport *viewport)
+{
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12_VIEWPORT d3d12Viewport;
+    d3d12Viewport.TopLeftX = viewport->x;
+    d3d12Viewport.TopLeftY = viewport->y;
+    d3d12Viewport.Width = viewport->w;
+    d3d12Viewport.Height = viewport->h;
+    d3d12Viewport.MinDepth = viewport->minDepth;
+    d3d12Viewport.MaxDepth = viewport->maxDepth;
+    ID3D12GraphicsCommandList2_RSSetViewports(d3d12CommandBuffer->graphicsCommandList, 1, &d3d12Viewport);
+}
+
+void D3D12_SetScissor(
+    SDL_GpuCommandBuffer *commandBuffer,
+    SDL_GpuRect *scissor)
+{
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12_RECT scissorRect;
+    scissorRect.left = scissor->x;
+    scissorRect.top = scissor->y;
+    scissorRect.right = scissor->x + scissor->w;
+    scissorRect.bottom = scissor->y + scissor->h;
+    ID3D12GraphicsCommandList2_RSSetScissorRects(d3d12CommandBuffer->graphicsCommandList, 1, &scissorRect);
+}
+
 void D3D12_BeginRenderPass(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_GpuColorAttachmentInfo *colorAttachmentInfos,
     Uint32 colorAttachmentCount,
-    SDL_GpuDepthStencilAttachmentInfo *depthStencilAttachmentInfo) { SDL_assert(SDL_FALSE); }
+    SDL_GpuDepthStencilAttachmentInfo *depthStencilAttachmentInfo)
+{
+
+    SDL_assert(commandBuffer);
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12Renderer *renderer = d3d12CommandBuffer->renderer;
+
+    Uint32 framebufferWidth = UINT32_MAX;
+    Uint32 framebufferHeight = UINT32_MAX;
+
+    for (Uint32 i = 0; i < colorAttachmentCount; ++i) {
+        D3D12Texture *texture = (D3D12Texture *)colorAttachmentInfos[i].textureSlice.texture;
+        auto h = texture->desc.Height >> colorAttachmentInfos[i].textureSlice.mipLevel;
+        auto w = texture->desc.Width >> colorAttachmentInfos[i].textureSlice.mipLevel;
+
+        /* The framebuffer cannot be larger than the smallest attachment. */
+
+        if (w < framebufferWidth) {
+            framebufferWidth = w;
+        }
+
+        if (h < framebufferHeight) {
+            framebufferHeight = h;
+        }
+
+        if (!texture->isRenderTarget) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Color attachment texture was not designated as a target!");
+            return;
+        }
+    }
+
+    if (depthStencilAttachmentInfo != NULL) {
+        D3D12Texture *texture = (D3D12Texture *)depthStencilAttachmentInfo->textureSlice.texture;
+
+        auto h = texture->desc.Height >> depthStencilAttachmentInfo->textureSlice.mipLevel;
+        auto w = texture->desc.Width >> depthStencilAttachmentInfo->textureSlice.mipLevel;
+
+        /* The framebuffer cannot be larger than the smallest attachment. */
+
+        if (w < framebufferWidth) {
+            framebufferWidth = w;
+        }
+
+        if (h < framebufferHeight) {
+            framebufferHeight = h;
+        }
+
+        if (!texture->isRenderTarget) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Depth stencil attachment texture was not designated as a target!");
+            return;
+        }
+    }
+
+    /* Layout transitions */
+
+    d3d12CommandBuffer->colorAttachmentCount = colorAttachmentCount;
+
+    for (Uint32 i = 0; i < colorAttachmentCount; i += 1) {
+
+        D3D12Texture *texture = (D3D12Texture *)colorAttachmentInfos[i].textureSlice.texture;
+        d3d12CommandBuffer->colorAttachmentTexture[i] = texture;
+
+        D3D12_RESOURCE_BARRIER barrierDesc;
+        SDL_zero(barrierDesc);
+
+        barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrierDesc.Transition.pResource = texture->resource;
+        barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT,
+        barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+
+        ID3D12GraphicsCommandList2_ResourceBarrier(d3d12CommandBuffer->graphicsCommandList, 1, &barrierDesc);
+
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor = texture->rtvHandle;
+
+        ID3D12GraphicsCommandList2_OMSetRenderTargets(d3d12CommandBuffer->graphicsCommandList, 1, &rtvDescriptor, SDL_FALSE, NULL);
+
+        float clearColor[4];
+        clearColor[0] = colorAttachmentInfos[i].clearColor.r;
+        clearColor[1] = colorAttachmentInfos[i].clearColor.g;
+        clearColor[2] = colorAttachmentInfos[i].clearColor.b;
+        clearColor[3] = colorAttachmentInfos[i].clearColor.a;
+
+        ID3D12GraphicsCommandList2_ClearRenderTargetView(d3d12CommandBuffer->graphicsCommandList, rtvDescriptor, clearColor, 0, NULL);
+    }
+
+    /* Set sensible default viewport state */
+    SDL_GpuViewport defaultViewport;
+    defaultViewport.x = 0;
+    defaultViewport.y = 0;
+    defaultViewport.w = framebufferWidth;
+    defaultViewport.h = framebufferHeight;
+    defaultViewport.minDepth = 0;
+    defaultViewport.maxDepth = 1;
+
+    D3D12_SetViewport(
+        commandBuffer,
+        &defaultViewport);
+
+    SDL_GpuRect defaultScissor;
+
+    defaultScissor.x = 0;
+    defaultScissor.y = 0;
+    defaultScissor.w = framebufferWidth;
+    defaultScissor.h = framebufferHeight;
+
+    D3D12_SetScissor(
+        commandBuffer,
+        &defaultScissor);
+}
 
 void D3D12_BindGraphicsPipeline(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_GpuGraphicsPipeline *graphicsPipeline) { SDL_assert(SDL_FALSE); }
-
-void D3D12_SetViewport(
-    SDL_GpuCommandBuffer *commandBuffer,
-    SDL_GpuViewport *viewport) { SDL_assert(SDL_FALSE); }
-
-void D3D12_SetScissor(
-    SDL_GpuCommandBuffer *commandBuffer,
-    SDL_GpuRect *scissor) { SDL_assert(SDL_FALSE); }
 
 void D3D12_BindVertexBuffers(
     SDL_GpuCommandBuffer *commandBuffer,
@@ -453,7 +587,28 @@ void D3D12_DrawIndexedPrimitivesIndirect(
 void D3D12_EndRenderPass(
     SDL_GpuCommandBuffer *commandBuffer)
 {
-    SDL_assert(SDL_FALSE);
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12Renderer *renderer = (D3D12Renderer *)d3d12CommandBuffer->renderer;
+    Uint32 i;
+
+    for (Uint32 i = 0; i < d3d12CommandBuffer->colorAttachmentCount; i += 1) {
+
+        D3D12Texture *texture = d3d12CommandBuffer->colorAttachmentTexture[i];
+        d3d12CommandBuffer->colorAttachmentTexture[i] = NULL;
+        D3D12_RESOURCE_BARRIER barrierDesc;
+        SDL_zero(barrierDesc);
+
+        barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrierDesc.Transition.pResource = texture->resource;
+        barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
+        barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+
+        ID3D12GraphicsCommandList2_ResourceBarrier(d3d12CommandBuffer->graphicsCommandList, 1, &barrierDesc);
+    }
+
+    d3d12CommandBuffer->colorAttachmentCount = 0;
 }
 
 /* Compute Pass */
@@ -607,7 +762,7 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc;
     HRESULT res;
 
-    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = { 0 };
     rtvHeapDesc.NumDescriptors = SWAPCHAIN_BUFFER_COUNT;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -645,6 +800,7 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
         ID3D12Resource_GetDesc(windowData->renderTargets[i], &windowData->renderTexture[i]->desc);
         windowData->renderTexture[i]->rtvHandle = rtvDescriptor;
         windowData->renderTexture[i]->resource = windowData->renderTargets[i];
+        windowData->renderTexture[i]->isRenderTarget = SDL_TRUE;
 
         rtvDescriptor.ptr += 1 * rtvDescriptorSize;
     }
@@ -888,37 +1044,6 @@ SDL_GpuTexture *D3D12_AcquireSwapchainTexture(
     ERROR_CHECK("Could not reset commandAllocator");
     res = ID3D12GraphicsCommandList2_Reset(d3d12CommandBuffer->graphicsCommandList, d3d12CommandBuffer->commandAllocator, NULL);
     ERROR_CHECK("Could not reset graphicsCommandList");
-
-    D3D12_RESOURCE_BARRIER barrierDesc;
-    SDL_zero(barrierDesc);
-
-    barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrierDesc.Transition.pResource = windowData->renderTexture[windowData->frameCounter]->resource;
-    barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT,
-    barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-
-    ID3D12GraphicsCommandList2_ResourceBarrier(d3d12CommandBuffer->graphicsCommandList, 1, &barrierDesc);
-
-    D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor = windowData->renderTexture[windowData->frameCounter]->rtvHandle;
-
-    ID3D12GraphicsCommandList2_OMSetRenderTargets(d3d12CommandBuffer->graphicsCommandList, 1, &rtvDescriptor, SDL_FALSE, NULL);
-
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-
-    ID3D12GraphicsCommandList2_ClearRenderTargetView(d3d12CommandBuffer->graphicsCommandList, rtvDescriptor, clearColor, 0, NULL);
-
-    SDL_zero(barrierDesc);
-
-    barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrierDesc.Transition.pResource = windowData->renderTexture[windowData->frameCounter]->resource;
-    barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
-    barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-    barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-
-    ID3D12GraphicsCommandList2_ResourceBarrier(d3d12CommandBuffer->graphicsCommandList, 1, &barrierDesc);
 
     texture = windowData->renderTexture[windowData->frameCounter];
     if (texture) {
