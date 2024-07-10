@@ -147,16 +147,14 @@ struct D3D12WindowData
     DXGI_COLOR_SPACE_TYPE swapchainColorSpace;
     // D3D12Fence *inFlightFences[MAX_FRAMES_IN_FLIGHT];
 
-    // todo cleanup
     ID3D12DescriptorHeap *rtvHeap;
-    // todo cleanup
     ID3D12Resource *renderTargets[SWAPCHAIN_BUFFER_COUNT];
-    // todo cleanup
     D3D12Texture *renderTexture[SWAPCHAIN_BUFFER_COUNT];
     Uint32 frameCounter;
 
     // not owned, chain of active windows, see D3D12CommandBuffer::nextWindow
     D3D12WindowData *nextWindow;
+    SDL_bool activeWindow;
 };
 
 struct D3D12Texture
@@ -198,14 +196,13 @@ struct D3D12CommandBuffer
 
     SDL_Mutex *fenceLock;
     UINT64 fenceValue;
-    // todo cleanup
     HANDLE fenceEvent;
 
     // not owned, head of chain of active windows
     D3D12WindowData *nextWindow;
 
     Uint32 colorAttachmentCount;
-    D3D12Texture* colorAttachmentTexture[MAX_COLOR_TARGET_BINDINGS];
+    D3D12Texture *colorAttachmentTexture[MAX_COLOR_TARGET_BINDINGS];
 };
 
 /* Logging */
@@ -262,7 +259,92 @@ D3D12_INTERNAL_LogError(
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s! Error Code: %s " HRESULT_FMT, msg, wszMsgBuff, res);
 }
 
-void D3D12_DestroyDevice(SDL_GpuDevice *device) { SDL_assert(SDL_FALSE); }
+static void D3D12_INTERNAL_DestroyCommandBuffer(D3D12CommandBuffer *commandBuffer)
+{
+    if (commandBuffer->fenceEvent) {
+        CloseHandle(commandBuffer->fenceEvent);
+        commandBuffer->fenceEvent = NULL;
+    }
+    if (commandBuffer->fenceLock) {
+        SDL_DestroyMutex(commandBuffer->fenceLock);
+        commandBuffer->fenceLock = NULL;
+    }
+    if (commandBuffer->graphicsCommandList) {
+        ID3D12GraphicsCommandList2_Release(commandBuffer->graphicsCommandList);
+        commandBuffer->graphicsCommandList = NULL;
+    }
+    if (commandBuffer->commandAllocator) {
+        ID3D12CommandAllocator_Release(commandBuffer->commandAllocator);
+        commandBuffer->commandAllocator = NULL;
+    }
+    if (commandBuffer->commandQueue) {
+        ID3D12CommandQueue_Release(commandBuffer->commandQueue);
+        commandBuffer->commandQueue = NULL;
+    }
+}
+
+static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer *renderer)
+{
+    if (renderer->commandBuffer) {
+        D3D12_INTERNAL_DestroyCommandBuffer(renderer->commandBuffer);
+        SDL_free(renderer->commandBuffer);
+        renderer->commandBuffer = NULL;
+    }
+    if (renderer->device) {
+        ID3D12Device_Release(renderer->device);
+        renderer->device = NULL;
+    }
+    if (renderer->adapter) {
+        IDXGIAdapter1_Release(renderer->adapter);
+        renderer->adapter = NULL;
+    }
+    if (renderer->factory) {
+        IDXGIFactory4_Release(renderer->factory);
+        renderer->factory = NULL;
+    }
+    if (renderer->dxgiDebug) {
+        IDXGIDebug_Release(renderer->dxgiDebug);
+        renderer->dxgiDebug = NULL;
+    }
+    if (renderer->d3d12_dll) {
+        SDL_UnloadObject(renderer->d3d12_dll);
+        renderer->d3d12_dll = NULL;
+    }
+    if (renderer->dxgi_dll) {
+        SDL_UnloadObject(renderer->dxgi_dll);
+        renderer->dxgi_dll = NULL;
+    }
+    if (renderer->d3dcompiler_dll) {
+        SDL_UnloadObject(renderer->d3dcompiler_dll);
+        renderer->d3dcompiler_dll = NULL;
+    }
+    if (renderer->dxgidebug_dll) {
+        SDL_UnloadObject(renderer->dxgidebug_dll);
+        renderer->dxgidebug_dll = NULL;
+    }
+    renderer->D3DCompile_func = NULL;
+}
+
+static void D3D12_INTERNAL_DestroyRendererAndFree(D3D12Renderer **rendererRef)
+{
+    D3D12Renderer *renderer;
+    renderer = *rendererRef;
+    if (!renderer)
+        return;
+    *rendererRef = NULL;
+    D3D12_INTERNAL_DestroyRenderer(renderer);
+    SDL_free(renderer);
+}
+
+void D3D12_DestroyDevice(SDL_GpuDevice *device)
+{
+    D3D12Renderer *renderer = (D3D12Renderer *)device->driverData;
+    if (renderer) {
+        D3D12_INTERNAL_DestroyRenderer(renderer);
+        SDL_free(renderer);
+    }
+    SDL_free(device);
+}
 
 /* State Creation */
 
@@ -807,6 +889,32 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
     return SDL_TRUE;
 }
 
+static void D3D12_INTERNAL_DestroyWindowData(
+    D3D12Renderer *renderer,
+    D3D12WindowData *windowData)
+{
+    for (int i = SWAPCHAIN_BUFFER_COUNT - 1; i >= 0; --i) {
+        D3D12Texture *texture = windowData->renderTexture[i];
+        windowData->renderTargets[i] = NULL;
+        windowData->renderTexture[i] = NULL;
+        if (texture) {
+            ID3D12Resource *resource = texture->resource;
+            SDL_free(texture);
+            if (resource) {
+                ID3D12Resource_Release(resource);
+            }
+        }
+    }
+    if (windowData->rtvHeap) {
+        ID3D12DescriptorHeap_Release(windowData->rtvHeap);
+        windowData->rtvHeap = NULL;
+    }
+    if (windowData->swapchain) {
+        IDXGISwapChain3_Release(windowData->swapchain);
+        windowData->swapchain = NULL;
+    }
+}
+
 static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     D3D12Renderer *renderer,
     D3D12WindowData *windowData,
@@ -997,7 +1105,20 @@ SDL_bool D3D12_ClaimWindow(
 
 void D3D12_UnclaimWindow(
     SDL_GpuRenderer *driverData,
-    SDL_Window *window) { SDL_assert(SDL_FALSE); }
+    SDL_Window *window)
+{
+    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+    D3D12WindowData *windowData = D3D12_INTERNAL_FetchWindowData(window);
+
+    if (windowData == NULL) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Window already unclaimed!");
+        return;
+    }
+
+    D3D12_INTERNAL_DestroyWindowData(renderer, windowData);
+    SDL_ClearProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA);
+    SDL_free(windowData);
+}
 
 SDL_bool D3D12_SetSwapchainParameters(
     SDL_GpuRenderer *driverData,
@@ -1033,17 +1154,14 @@ SDL_GpuTexture *D3D12_AcquireSwapchainTexture(
     D3D12WindowData *windowData = D3D12_INTERNAL_FetchWindowData(window);
     SDL_assert(windowData);
 
-    // this is brittle if AcquireSwapchainTexture is called multiple times on same window before Submit
-    D3D12WindowData **nextWindowPtr = &d3d12CommandBuffer->nextWindow;
-    while (*nextWindowPtr)
-        nextWindowPtr = &(*nextWindowPtr)->nextWindow;
-    *nextWindowPtr = windowData;
-    windowData->nextWindow = NULL;
-
-    res = ID3D12CommandAllocator_Reset(d3d12CommandBuffer->commandAllocator);
-    ERROR_CHECK("Could not reset commandAllocator");
-    res = ID3D12GraphicsCommandList2_Reset(d3d12CommandBuffer->graphicsCommandList, d3d12CommandBuffer->commandAllocator, NULL);
-    ERROR_CHECK("Could not reset graphicsCommandList");
+    if (!windowData->activeWindow) {
+        D3D12WindowData **nextWindowPtr = &d3d12CommandBuffer->nextWindow;
+        while (*nextWindowPtr)
+            nextWindowPtr = &(*nextWindowPtr)->nextWindow;
+        *nextWindowPtr = windowData;
+        windowData->nextWindow = NULL;
+        windowData->activeWindow = TRUE;
+    }
 
     texture = windowData->renderTexture[windowData->frameCounter];
     if (texture) {
@@ -1092,27 +1210,10 @@ void D3D12_Submit(
         WaitForSingleObject(d3d12commandBuffer->fenceEvent, INFINITE);
     }
 
-    // d3d12commandBuffer->
-
-    /*
-    {
-        SDL_LockMutex(d3d12commandBuffer->fenceLock);
-
-        res = ID3D12CommandQueue_Signal(d3d12commandBuffer->commandQueue, d3d12commandBuffer->fence, d3d12commandBuffer->fenceValue);
-        ERROR_CHECK("Could not signal commandQueue");
-        d3d12commandBuffer->fenceValue++;
-
-        SDL_UnlockMutex(d3d12commandBuffer->fenceLock);
-    }
-
-    res = ID3D12CommandAllocator_Reset(renderer->commandBuffer->commandAllocator);
+    res = ID3D12CommandAllocator_Reset(d3d12commandBuffer->commandAllocator);
     ERROR_CHECK("Could not reset commandAllocator");
-    res = ID3D12GraphicsCommandList2_Reset(renderer->commandBuffer->graphicsCommandList, renderer->commandBuffer->commandAllocator, NULL);
+    res = ID3D12GraphicsCommandList2_Reset(d3d12commandBuffer->graphicsCommandList, d3d12commandBuffer->commandAllocator, NULL);
     ERROR_CHECK("Could not reset graphicsCommandList");
-
-    */
-    //  ID3D12DescriptorHeap *rootDescriptorHeaps[] = { renderer->srvDescriptorHeap, renderer->samplerDescriptorHeap };
-    //    D3D_CALL(data->commandList, SetDescriptorHeaps, 2, rootDescriptorHeaps);
 }
 
 SDL_GpuFence *D3D12_SubmitAndAcquireFence(
@@ -1321,80 +1422,6 @@ static void D3D12_INTERNAL_TryInitializeDXGIDebug(D3D12Renderer *renderer)
     */
 }
 
-static void D3D12_INTERNAL_DestroyCommandBuffer(D3D12CommandBuffer *commandBuffer)
-{
-    if (commandBuffer->fenceLock) {
-        SDL_DestroyMutex(commandBuffer->fenceLock);
-        commandBuffer->fenceLock = NULL;
-    }
-    if (commandBuffer->graphicsCommandList) {
-        ID3D12GraphicsCommandList2_Release(commandBuffer->graphicsCommandList);
-        commandBuffer->graphicsCommandList = NULL;
-    }
-    if (commandBuffer->commandAllocator) {
-        ID3D12CommandAllocator_Release(commandBuffer->commandAllocator);
-        commandBuffer->commandAllocator = NULL;
-    }
-    if (commandBuffer->commandQueue) {
-        ID3D12CommandQueue_Release(commandBuffer->commandQueue);
-        commandBuffer->commandQueue = NULL;
-    }
-    SDL_free(commandBuffer);
-}
-
-static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer *renderer)
-{
-    if (renderer->commandBuffer) {
-        D3D12_INTERNAL_DestroyCommandBuffer(renderer->commandBuffer);
-        SDL_free(renderer->commandBuffer);
-        renderer->commandBuffer = NULL;
-    }
-    if (renderer->device) {
-        ID3D12Device_Release(renderer->device);
-        renderer->device = NULL;
-    }
-    if (renderer->adapter) {
-        IDXGIAdapter1_Release(renderer->adapter);
-        renderer->adapter = NULL;
-    }
-    if (renderer->factory) {
-        IDXGIFactory4_Release(renderer->factory);
-        renderer->factory = NULL;
-    }
-    if (renderer->dxgiDebug) {
-        IDXGIDebug_Release(renderer->dxgiDebug);
-        renderer->dxgiDebug = NULL;
-    }
-    if (renderer->d3d12_dll) {
-        SDL_UnloadObject(renderer->d3d12_dll);
-        renderer->d3d12_dll = NULL;
-    }
-    if (renderer->dxgi_dll) {
-        SDL_UnloadObject(renderer->dxgi_dll);
-        renderer->dxgi_dll = NULL;
-    }
-    if (renderer->d3dcompiler_dll) {
-        SDL_UnloadObject(renderer->d3dcompiler_dll);
-        renderer->d3dcompiler_dll = NULL;
-    }
-    if (renderer->dxgidebug_dll) {
-        SDL_UnloadObject(renderer->dxgidebug_dll);
-        renderer->dxgidebug_dll = NULL;
-    }
-    renderer->D3DCompile_func = NULL;
-}
-
-static void D3D12_INTERNAL_DestroyRendererAndFree(D3D12Renderer **rendererRef)
-{
-    D3D12Renderer *renderer;
-    renderer = *rendererRef;
-    if (!renderer)
-        return;
-    *rendererRef = NULL;
-    D3D12_INTERNAL_DestroyRenderer(renderer);
-    SDL_free(renderer);
-}
-
 static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowPower)
 {
     SDL_GpuDevice *result;
@@ -1599,6 +1626,17 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
     if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
         ERROR_CHECK_RETURN("Could not close ID3D12CommandList", NULL);
+    }
+
+    res = ID3D12CommandAllocator_Reset(renderer->commandBuffer->commandAllocator);
+        if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+        ERROR_CHECK_RETURN("Could not reset commandAllocator", NULL);
+    }
+    res = ID3D12GraphicsCommandList2_Reset(renderer->commandBuffer->graphicsCommandList, renderer->commandBuffer->commandAllocator, NULL);
+        if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+        ERROR_CHECK_RETURN("Could not reset graphicsCommandList", NULL);
     }
 
     // Create fence
