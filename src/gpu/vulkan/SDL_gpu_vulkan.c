@@ -302,11 +302,23 @@ static VkPrimitiveTopology SDLToVK_PrimitiveType[] = {
     VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
 };
 
-static VkPolygonMode SDLToVK_PolygonMode[] = {
-    VK_POLYGON_MODE_FILL,
-    VK_POLYGON_MODE_LINE,
-    VK_POLYGON_MODE_POINT
-};
+static inline VkPolygonMode SDLToVK_PolygonMode(
+    SDL_bool supportsFillModeNonSolid,
+    SDL_GpuFillMode mode)
+{
+    if (mode == SDL_GPU_FILLMODE_FILL) {
+        return VK_POLYGON_MODE_FILL; /* always available! */
+    }
+
+    if (supportsFillModeNonSolid && mode == SDL_GPU_FILLMODE_LINE) {
+        return VK_POLYGON_MODE_LINE;
+    }
+
+    SDL_LogWarn(
+        SDL_LOG_CATEGORY_APPLICATION,
+        "Unsupported fill mode requested, using FILL!");
+    return VK_POLYGON_MODE_FILL;
+}
 
 static VkCullModeFlags SDLToVK_CullMode[] = {
     VK_CULL_MODE_NONE,
@@ -1294,6 +1306,8 @@ struct VulkanRenderer
     VulkanExtensions supports;
     SDL_bool supportsDebugUtils;
     SDL_bool supportsColorspace;
+    SDL_bool supportsFillModeNonSolid;
+    SDL_bool supportsMultiDrawIndirect;
 
     VulkanMemoryAllocator *memoryAllocator;
     VkPhysicalDeviceMemoryProperties memoryProperties;
@@ -5235,15 +5249,29 @@ static void VULKAN_DrawPrimitivesIndirect(
     VulkanCommandBuffer *vulkanCommandBuffer = (VulkanCommandBuffer *)commandBuffer;
     VulkanRenderer *renderer = (VulkanRenderer *)vulkanCommandBuffer->renderer;
     VulkanBuffer *vulkanBuffer = ((VulkanBufferContainer *)buffer)->activeBufferHandle->vulkanBuffer;
+    Uint32 i;
 
     VULKAN_INTERNAL_BindGraphicsDescriptorSets(renderer, vulkanCommandBuffer);
 
-    renderer->vkCmdDrawIndirect(
-        vulkanCommandBuffer->commandBuffer,
-        vulkanBuffer->buffer,
-        offsetInBytes,
-        drawCount,
-        stride);
+    if (renderer->supportsMultiDrawIndirect) {
+        /* Real multi-draw! */
+        renderer->vkCmdDrawIndirect(
+            vulkanCommandBuffer->commandBuffer,
+            vulkanBuffer->buffer,
+            offsetInBytes,
+            drawCount,
+            stride);
+    } else {
+        /* Fake multi-draw... */
+        for (i = 0; i < drawCount; i += 1) {
+            renderer->vkCmdDrawIndirect(
+                vulkanCommandBuffer->commandBuffer,
+                vulkanBuffer->buffer,
+                offsetInBytes + (stride * i),
+                1,
+                stride);
+        }
+    }
 
     VULKAN_INTERNAL_TrackBuffer(vulkanCommandBuffer, vulkanBuffer);
 }
@@ -5258,15 +5286,29 @@ static void VULKAN_DrawIndexedPrimitivesIndirect(
     VulkanCommandBuffer *vulkanCommandBuffer = (VulkanCommandBuffer *)commandBuffer;
     VulkanRenderer *renderer = (VulkanRenderer *)vulkanCommandBuffer->renderer;
     VulkanBuffer *vulkanBuffer = ((VulkanBufferContainer *)buffer)->activeBufferHandle->vulkanBuffer;
+    Uint32 i;
 
     VULKAN_INTERNAL_BindGraphicsDescriptorSets(renderer, vulkanCommandBuffer);
 
-    renderer->vkCmdDrawIndexedIndirect(
-        vulkanCommandBuffer->commandBuffer,
-        vulkanBuffer->buffer,
-        offsetInBytes,
-        drawCount,
-        stride);
+    if (renderer->supportsMultiDrawIndirect) {
+        /* Real multi-draw! */
+        renderer->vkCmdDrawIndexedIndirect(
+            vulkanCommandBuffer->commandBuffer,
+            vulkanBuffer->buffer,
+            offsetInBytes,
+            drawCount,
+            stride);
+    } else {
+        /* Fake multi-draw... */
+        for (i = 0; i < drawCount; i += 1) {
+            renderer->vkCmdDrawIndexedIndirect(
+                vulkanCommandBuffer->commandBuffer,
+                vulkanBuffer->buffer,
+                offsetInBytes + (stride * i),
+                1,
+                stride);
+        }
+    }
 
     VULKAN_INTERNAL_TrackBuffer(vulkanCommandBuffer, vulkanBuffer);
 }
@@ -6326,7 +6368,9 @@ static SDL_GpuGraphicsPipeline *VULKAN_CreateGraphicsPipeline(
     rasterizationStateCreateInfo.flags = 0;
     rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
     rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-    rasterizationStateCreateInfo.polygonMode = SDLToVK_PolygonMode[pipelineCreateInfo->rasterizerState.fillMode];
+    rasterizationStateCreateInfo.polygonMode = SDLToVK_PolygonMode(
+        renderer->supportsFillModeNonSolid,
+        pipelineCreateInfo->rasterizerState.fillMode);
     rasterizationStateCreateInfo.cullMode = SDLToVK_CullMode[pipelineCreateInfo->rasterizerState.cullMode];
     rasterizationStateCreateInfo.frontFace = SDLToVK_FrontFace[pipelineCreateInfo->rasterizerState.frontFace];
     rasterizationStateCreateInfo.depthBiasEnable =
@@ -11233,7 +11277,8 @@ static Uint8 VULKAN_INTERNAL_CreateLogicalDevice(
 {
     VkResult vulkanResult;
     VkDeviceCreateInfo deviceCreateInfo;
-    VkPhysicalDeviceFeatures deviceFeatures;
+    VkPhysicalDeviceFeatures desiredDeviceFeatures;
+    VkPhysicalDeviceFeatures haveDeviceFeatures;
     VkPhysicalDevicePortabilitySubsetFeaturesKHR portabilityFeatures;
     const char **deviceExtensions;
 
@@ -11248,13 +11293,27 @@ static Uint8 VULKAN_INTERNAL_CreateLogicalDevice(
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.pQueuePriorities = &queuePriority;
 
+    /* check feature support */
+
+    renderer->vkGetPhysicalDeviceFeatures(
+        renderer->physicalDevice,
+        &haveDeviceFeatures);
+
     /* specifying used device features */
 
-    SDL_zero(deviceFeatures);
-    deviceFeatures.fillModeNonSolid = VK_TRUE;
-    deviceFeatures.samplerAnisotropy = VK_TRUE;
-    deviceFeatures.multiDrawIndirect = VK_TRUE;
-    deviceFeatures.independentBlend = VK_TRUE;
+    SDL_zero(desiredDeviceFeatures);
+    desiredDeviceFeatures.independentBlend = VK_TRUE;
+    desiredDeviceFeatures.samplerAnisotropy = VK_TRUE;
+
+    if (haveDeviceFeatures.fillModeNonSolid) {
+        desiredDeviceFeatures.fillModeNonSolid = VK_TRUE;
+        renderer->supportsFillModeNonSolid = SDL_TRUE;
+    }
+
+    if (haveDeviceFeatures.multiDrawIndirect) {
+        desiredDeviceFeatures.multiDrawIndirect = VK_TRUE;
+        renderer->supportsMultiDrawIndirect = SDL_TRUE;
+    }
 
     /* creating the logical device */
 
@@ -11293,7 +11352,7 @@ static Uint8 VULKAN_INTERNAL_CreateLogicalDevice(
         deviceCreateInfo.enabledExtensionCount);
     CreateDeviceExtensionArray(&renderer->supports, deviceExtensions);
     deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
-    deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+    deviceCreateInfo.pEnabledFeatures = &desiredDeviceFeatures;
 
     vulkanResult = renderer->vkCreateDevice(
         renderer->physicalDevice,
@@ -11475,9 +11534,6 @@ static SDL_GpuDevice *VULKAN_CreateDevice(SDL_bool debugMode, SDL_bool preferLow
 
     /* Variables: Image Format Detection */
     VkImageFormatProperties imageFormatProperties;
-
-    /* Variables: Device Feature Checks */
-    VkPhysicalDeviceFeatures physicalDeviceFeatures;
 
     if (SDL_Vulkan_LoadLibrary(NULL) < 0) {
         SDL_assert(!"This should have failed in PrepareDevice first!");
@@ -11701,12 +11757,6 @@ static SDL_GpuDevice *VULKAN_CreateDevice(SDL_bool debugMode, SDL_bool preferLow
     renderer->allocationsToDefragCapacity = 4;
     renderer->allocationsToDefrag = SDL_malloc(
         renderer->allocationsToDefragCapacity * sizeof(VulkanMemoryAllocation *));
-
-    /* Support checks */
-
-    renderer->vkGetPhysicalDeviceFeatures(
-        renderer->physicalDevice,
-        &physicalDeviceFeatures);
 
     return result;
 }
