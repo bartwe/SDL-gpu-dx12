@@ -815,6 +815,11 @@ SDL_GpuRenderPass *SDL_GpuBeginRenderPass(
         return NULL;
     }
 
+    if (colorAttachmentCount > MAX_COLOR_TARGET_BINDINGS) {
+        SDL_SetError("colorAttachmentCount exceeds MAX_COLOR_TARGET_BINDINGS");
+        return NULL;
+    }
+
     if (COMMAND_BUFFER_DEVICE->debugMode) {
         CHECK_COMMAND_BUFFER_RETURN_NULL
         CHECK_ANY_PASS_IN_PROGRESS
