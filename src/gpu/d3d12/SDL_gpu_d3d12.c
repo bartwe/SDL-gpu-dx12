@@ -1115,6 +1115,8 @@ void D3D12_UnclaimWindow(
         return;
     }
 
+    SDL_assert(!windowData->activeWindow);
+
     D3D12_INTERNAL_DestroyWindowData(renderer, windowData);
     SDL_ClearProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA);
     SDL_free(windowData);
@@ -1190,15 +1192,17 @@ void D3D12_Submit(
     ID3D12CommandQueue_ExecuteCommandLists(d3d12commandBuffer->commandQueue, _countof(commandLists), commandLists);
 
     D3D12WindowData *window = d3d12commandBuffer->nextWindow;
+    d3d12commandBuffer->nextWindow = NULL;
 
     while (window) {
+        SDL_assert(window->activeWindow);
+        D3D12WindowData * nextWindow = window->nextWindow;
+        window->nextWindow = NULL;
+        window->activeWindow = FALSE;
         IDXGISwapChain3_Present(window->swapchain, 1, 0);
         window->frameCounter = IDXGISwapChain3_GetCurrentBackBufferIndex(window->swapchain);
-        ;
-        window = window->nextWindow;
+        window = nextWindow;
     }
-
-    d3d12commandBuffer->nextWindow = NULL;
 
     auto fenceToWaitFor = d3d12commandBuffer->fenceValue;
     res = ID3D12CommandQueue_Signal(d3d12commandBuffer->commandQueue, d3d12commandBuffer->fence, d3d12commandBuffer->fenceValue);
