@@ -302,24 +302,6 @@ static VkPrimitiveTopology SDLToVK_PrimitiveType[] = {
     VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
 };
 
-static inline VkPolygonMode SDLToVK_PolygonMode(
-    SDL_bool supportsFillModeNonSolid,
-    SDL_GpuFillMode mode)
-{
-    if (mode == SDL_GPU_FILLMODE_FILL) {
-        return VK_POLYGON_MODE_FILL; /* always available! */
-    }
-
-    if (supportsFillModeNonSolid && mode == SDL_GPU_FILLMODE_LINE) {
-        return VK_POLYGON_MODE_LINE;
-    }
-
-    SDL_LogWarn(
-        SDL_LOG_CATEGORY_APPLICATION,
-        "Unsupported fill mode requested, using FILL!");
-    return VK_POLYGON_MODE_FILL;
-}
-
 static VkCullModeFlags SDLToVK_CullMode[] = {
     VK_CULL_MODE_NONE,
     VK_CULL_MODE_FRONT_BIT,
@@ -1300,6 +1282,7 @@ struct VulkanRenderer
     Uint8 integratedMemoryNotification;
     Uint8 outOfDeviceLocalMemoryWarning;
     Uint8 outofBARMemoryWarning;
+    Uint8 fillModeOnlyWarning;
 
     SDL_bool debugMode;
     SDL_bool preferLowPower;
@@ -1491,6 +1474,25 @@ static inline VkSampleCountFlagBits VULKAN_INTERNAL_GetMaxMultiSampleCount(
     }
 
     return SDL_min(multiSampleCount, maxSupported);
+}
+
+static inline VkPolygonMode SDLToVK_PolygonMode(
+    VulkanRenderer *renderer,
+    SDL_GpuFillMode mode)
+{
+    if (mode == SDL_GPU_FILLMODE_FILL) {
+        return VK_POLYGON_MODE_FILL; /* always available! */
+    }
+
+    if (renderer->supportsFillModeNonSolid && mode == SDL_GPU_FILLMODE_LINE) {
+        return VK_POLYGON_MODE_LINE;
+    }
+
+    if (!renderer->fillModeOnlyWarning) {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Unsupported fill mode requested, using FILL!");
+        renderer->fillModeOnlyWarning = 1;
+    }
+    return VK_POLYGON_MODE_FILL;
 }
 
 /* Memory Management */
@@ -6369,7 +6371,7 @@ static SDL_GpuGraphicsPipeline *VULKAN_CreateGraphicsPipeline(
     rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
     rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
     rasterizationStateCreateInfo.polygonMode = SDLToVK_PolygonMode(
-        renderer->supportsFillModeNonSolid,
+        renderer,
         pipelineCreateInfo->rasterizerState.fillMode);
     rasterizationStateCreateInfo.cullMode = SDLToVK_CullMode[pipelineCreateInfo->rasterizerState.cullMode];
     rasterizationStateCreateInfo.frontFace = SDLToVK_FrontFace[pipelineCreateInfo->rasterizerState.frontFace];
