@@ -187,7 +187,8 @@ typedef enum SDL_GpuTransferBufferUsage
 typedef enum SDL_GpuShaderStage
 {
     SDL_GPU_SHADERSTAGE_VERTEX,
-    SDL_GPU_SHADERSTAGE_FRAGMENT
+    SDL_GPU_SHADERSTAGE_FRAGMENT,
+    SDL_GPU_SHADERSTAGE_COMPUTE
 } SDL_GpuShaderStage;
 
 typedef enum SDL_GpuShaderFormat

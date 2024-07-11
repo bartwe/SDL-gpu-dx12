@@ -68,16 +68,16 @@
 #define D3DCOMPILER_DLL "libvkd3d-utils.so.1"
 #endif
 
-#define D3D12_CREATE_DEVICE_FUNC      "D3D12CreateDevice"
-#define CREATE_DXGI_FACTORY1_FUNC     "CreateDXGIFactory1"
-#define D3DCOMPILE_FUNC               "D3DCompile"
-#define DXGI_GET_DEBUG_INTERFACE_FUNC "DXGIGetDebugInterface"
-#define WINDOW_PROPERTY_DATA          "SDL_GpuD3D12WindowPropertyData"
-#define D3D_FEATURE_LEVEL_CHOICE      D3D_FEATURE_LEVEL_11_1
-#define D3D_FEATURE_LEVEL_CHOICE_STR  "11_1"
-#define SWAPCHAIN_BUFFER_COUNT        2
-
-// #define SDL_GPU_SHADERSTAGE_COMPUTE 2
+#define D3D12_CREATE_DEVICE_FUNC            "D3D12CreateDevice"
+#define D3D12_SERIALIZE_ROOT_SIGNATURE_FUNC "D3D12SerializeRootSignature"
+#define CREATE_DXGI_FACTORY1_FUNC           "CreateDXGIFactory1"
+#define D3DCOMPILE_FUNC                     "D3DCompile"
+#define DXGI_GET_DEBUG_INTERFACE_FUNC       "DXGIGetDebugInterface"
+#define WINDOW_PROPERTY_DATA                "SDL_GpuD3D12WindowPropertyData"
+#define D3D_FEATURE_LEVEL_CHOICE            D3D_FEATURE_LEVEL_11_1
+#define D3D_FEATURE_LEVEL_CHOICE_STR        "11_1"
+#define SWAPCHAIN_BUFFER_COUNT              2
+#define MAX_ROOT_SIGNATURE_PARAMETERS       64
 
 #ifdef _WIN32
 #define HRESULT_FMT "(0x%08lX)"
@@ -113,6 +113,8 @@ static const IID D3D_IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89, { 0x9a,
 static const IID D3D_IID_ID3D12CommandAllocator = { 0x6102dee4, 0xaf59, 0x4b09, { 0xb9, 0x99, 0xb4, 0x4d, 0x73, 0xf0, 0x9b, 0x24 } };
 static const IID SDL_IID_ID3D12GraphicsCommandList2 = { 0x38C3E585, 0xFF17, 0x412C, { 0x91, 0x50, 0x4F, 0xC6, 0xF9, 0xD7, 0x2A, 0x28 } };
 static const IID SDL_IID_ID3D12Fence = { 0x0a753dcf, 0xc4d8, 0x4b91, { 0xad, 0xf6, 0xbe, 0x5a, 0x60, 0xd9, 0x5a, 0x76 } };
+static const IID SDL_IID_ID3D12RootSignature = { 0xc54a6b66, 0x72df, 0x4ee8, { 0x8b, 0xe5, 0xa9, 0x46, 0xa1, 0x42, 0x92, 0x14 } };
+static const IID SDL_IID_ID3D12PipelineState = { 0x765a30f3, 0xf624, 0x4c6f, { 0xa8, 0x28, 0xac, 0xe9, 0x48, 0x62, 0x24, 0x45 } };
 
 /* Conversions */
 
@@ -135,6 +137,7 @@ typedef struct D3D12Renderer D3D12Renderer;
 typedef struct D3D12CommandBuffer D3D12CommandBuffer;
 typedef struct D3D12WindowData D3D12WindowData;
 typedef struct D3D12Texture D3D12Texture;
+typedef struct D3D12Shader D3D12Shader;
 
 struct D3D12WindowData
 {
@@ -179,6 +182,7 @@ struct D3D12Renderer
     void *d3d12_dll;
     ID3D12Device *device;
     D3D12CommandBuffer *commandBuffer;
+    PFN_D3D12_SERIALIZE_ROOT_SIGNATURE D3D12SerializeRootSignature_func;
 };
 
 struct D3D12CommandBuffer
@@ -203,6 +207,19 @@ struct D3D12CommandBuffer
 
     Uint32 colorAttachmentCount;
     D3D12Texture *colorAttachmentTexture[MAX_COLOR_TARGET_BINDINGS];
+};
+
+struct D3D12Shader
+{
+    ID3D12PipelineState *handle;
+    ID3D12RootSignature *rootSignature;
+    void *bytecode;
+    size_t bytecodeSize;
+
+    Uint32 samplerCount;
+    Uint32 uniformBufferCount;
+    Uint32 storageBufferCount;
+    Uint32 storageTextureCount;
 };
 
 /* Logging */
@@ -323,6 +340,7 @@ static void D3D12_INTERNAL_DestroyRenderer(D3D12Renderer *renderer)
         renderer->dxgidebug_dll = NULL;
     }
     renderer->D3DCompile_func = NULL;
+    renderer->D3D12SerializeRootSignature_func = NULL;
 }
 
 static void D3D12_INTERNAL_DestroyRendererAndFree(D3D12Renderer **rendererRef)
@@ -360,9 +378,292 @@ SDL_GpuSampler *D3D12_CreateSampler(
     SDL_GpuRenderer *driverData,
     SDL_GpuSamplerCreateInfo *samplerCreateInfo) { SDL_assert(SDL_FALSE); }
 
+ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer, ID3D12Device *device, const SDL_GpuShaderCreateInfo *shaderCreateInfo)
+{
+    D3D12_ROOT_PARAMETER rootParameters[MAX_ROOT_SIGNATURE_PARAMETERS];
+    D3D12_DESCRIPTOR_RANGE descriptorRanges[MAX_ROOT_SIGNATURE_PARAMETERS];
+    UINT parameterCount = 0;
+
+    // Define descriptor ranges for uniform buffers
+    if (shaderCreateInfo->uniformBufferCount > 0) {
+        if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
+            return NULL;
+        }
+
+        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+        descriptorRange.NumDescriptors = shaderCreateInfo->uniformBufferCount;
+        descriptorRange.BaseShaderRegister = 0;
+        descriptorRange.RegisterSpace = 0;
+        descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        descriptorRanges[parameterCount] = descriptorRange;
+
+        D3D12_ROOT_PARAMETER rootParameter = {};
+        rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+        rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
+        rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters[parameterCount] = rootParameter;
+        parameterCount++;
+    }
+
+    // Define descriptor ranges for storage buffers
+    if (shaderCreateInfo->storageBufferCount > 0) {
+        if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
+            return NULL;
+        }
+        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        descriptorRange.NumDescriptors = shaderCreateInfo->storageBufferCount;
+        descriptorRange.BaseShaderRegister = 0;
+        descriptorRange.RegisterSpace = 0;
+        descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        descriptorRanges[parameterCount] = descriptorRange;
+
+        D3D12_ROOT_PARAMETER rootParameter = {};
+        rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+        rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
+        rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters[parameterCount] = rootParameter;
+        parameterCount++;
+    }
+
+    // Define descriptor ranges for storage textures
+    if (shaderCreateInfo->storageTextureCount > 0) {
+        if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
+            return NULL;
+        }
+        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        descriptorRange.NumDescriptors = shaderCreateInfo->storageTextureCount;
+        descriptorRange.BaseShaderRegister = 0;
+        descriptorRange.RegisterSpace = 0;
+        descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        descriptorRanges[parameterCount] = descriptorRange;
+
+        D3D12_ROOT_PARAMETER rootParameter = {};
+        rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+        rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
+        rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters[parameterCount] = rootParameter;
+        parameterCount++;
+    }
+
+    // Define descriptor ranges for samplers
+    if (shaderCreateInfo->samplerCount > 0) {
+        if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
+            return NULL;
+        }
+        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+        descriptorRange.NumDescriptors = shaderCreateInfo->samplerCount;
+        descriptorRange.BaseShaderRegister = 0;
+        descriptorRange.RegisterSpace = 0;
+        descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        descriptorRanges[parameterCount] = descriptorRange;
+
+        D3D12_ROOT_PARAMETER rootParameter = {};
+        rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+        rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
+        rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters[parameterCount] = rootParameter;
+        parameterCount++;
+    }
+
+    // Create the root signature description
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+    rootSignatureDesc.NumParameters = parameterCount;
+    rootSignatureDesc.pParameters = rootParameters;
+    rootSignatureDesc.NumStaticSamplers = 0;
+    rootSignatureDesc.pStaticSamplers = NULL;
+    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    // Serialize the root signature
+    ID3DBlob *serializedRootSignature = NULL;
+    ID3DBlob *errorBlob = NULL;
+    HRESULT res = renderer->D3D12SerializeRootSignature_func(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedRootSignature, &errorBlob);
+
+    if (FAILED(res)) {
+        if (errorBlob) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to serialize RootSignature: %s", (const char *)ID3D10Blob_GetBufferPointer(errorBlob));
+            ID3D10Blob_Release(errorBlob);
+        }
+        return NULL;
+    }
+
+    // Create the root signature
+    ID3D12RootSignature *rootSignature = NULL;
+
+    res = ID3D12Device_CreateRootSignature(device,
+                                           0,
+                                           ID3D10Blob_GetBufferPointer(serializedRootSignature),
+                                           ID3D10Blob_GetBufferSize(serializedRootSignature),
+                                           &SDL_IID_ID3D12RootSignature,
+                                           (void **)&rootSignature);
+
+    if (FAILED(res)) {
+        if (errorBlob) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create RootSignature");
+            ID3D10Blob_Release(errorBlob);
+        }
+        return NULL;
+    }
+
+    return rootSignature;
+}
+
+static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
+    D3D12Renderer *renderer,
+    ID3D12RootSignature *rootSignature,
+    Uint32 stage,
+    SDL_GpuShaderFormat format,
+    const Uint8 *code,
+    size_t codeSize,
+    const char *entryPointName,
+    void **pBytecode,
+    size_t *pBytecodeSize)
+{
+    const char *profiles[3] = { "vs_5_1", "ps_5_1", "cs_5_1" };
+    ID3DBlob *blob = NULL;
+    ID3DBlob *errorBlob = NULL;
+    const Uint8 *bytecode;
+    size_t bytecodeSize;
+    ID3D12PipelineState *pipelineState = NULL;
+    HRESULT res;
+
+    if (format == SDL_GPU_SHADERFORMAT_HLSL) {
+        res = renderer->D3DCompile_func(
+            code,
+            codeSize,
+            NULL,
+            NULL,
+            NULL,
+            entryPointName,
+            profiles[stage],
+            0,
+            0,
+            &blob,
+            &errorBlob);
+        if (FAILED(res)) {
+            if (errorBlob) {
+                SDL_LogError(SDL_LOG_CATEGORY_GPU, "%s", (const char *)ID3D10Blob_GetBufferPointer(errorBlob));
+                ID3D10Blob_Release(errorBlob);
+            }
+            if (blob)
+                ID3D10Blob_Release(blob);
+            return NULL;
+        }
+        if (errorBlob)
+            ID3D10Blob_Release(errorBlob);
+        bytecode = (const Uint8 *)ID3D10Blob_GetBufferPointer(blob);
+        bytecodeSize = ID3D10Blob_GetBufferSize(blob);
+    } else if (format == SDL_GPU_SHADERFORMAT_DXBC) {
+        bytecode = code;
+        bytecodeSize = codeSize;
+    } else {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Incompatible shader format for D3D12");
+        return NULL;
+    }
+
+    // Create pipeline state from the bytecode
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    SDL_zero(psoDesc);
+    psoDesc.pRootSignature = rootSignature;
+
+    if (stage == SDL_GPU_SHADERSTAGE_COMPUTE) {
+        D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc = {};
+        computePsoDesc.pRootSignature = rootSignature;
+        computePsoDesc.CS.pShaderBytecode = bytecode;
+        computePsoDesc.CS.BytecodeLength = bytecodeSize;
+        res = ID3D12Device_CreateComputePipelineState(renderer->device, &computePsoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_LogError(renderer->device, "Could not create compute pipeline state", res);
+            return NULL;
+        }
+    } else {
+
+        if (stage == SDL_GPU_SHADERSTAGE_VERTEX) {
+            psoDesc.VS.pShaderBytecode = bytecode;
+            psoDesc.VS.BytecodeLength = bytecodeSize;
+        } else if (stage == SDL_GPU_SHADERSTAGE_FRAGMENT) {
+            psoDesc.PS.pShaderBytecode = bytecode;
+            psoDesc.PS.BytecodeLength = bytecodeSize;
+        } else {
+            // Handle other stages if necessary
+            SDL_assert(FALSE);
+        }
+        res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_LogError(renderer->device, "Could not create graphics pipeline state", res);
+            return NULL;
+        }
+    }
+
+    if (pBytecode != NULL) {
+        *pBytecode = SDL_malloc(bytecodeSize);
+        SDL_memcpy(*pBytecode, bytecode, bytecodeSize);
+        *pBytecodeSize = bytecodeSize;
+    }
+
+    // Clean up
+    if (blob) {
+        ID3D10Blob_Release(blob);
+    }
+
+    return pipelineState;
+}
+
 SDL_GpuShader *D3D12_CreateShader(
     SDL_GpuRenderer *driverData,
-    SDL_GpuShaderCreateInfo *shaderCreateInfo) { SDL_assert(SDL_FALSE); }
+    SDL_GpuShaderCreateInfo *shaderCreateInfo)
+{
+    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+    ID3D12PipelineState *handle;
+    void *bytecode;
+    size_t bytecodeSize;
+    D3D12Shader *shader;
+
+    ID3D12RootSignature *rootSignature = D3D12_INTERNAL_CreateRootSignature(renderer, renderer->device, shaderCreateInfo);
+    if (!rootSignature) {
+        return NULL;
+    }
+    handle = D3D12_INTERNAL_CreatePipelineState(
+        renderer,
+        rootSignature,
+        shaderCreateInfo->stage,
+        shaderCreateInfo->format,
+        shaderCreateInfo->code,
+        shaderCreateInfo->codeSize,
+        shaderCreateInfo->entryPointName,
+        shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecode : NULL,
+        shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecodeSize : NULL);
+    if (!handle) {
+        ID3D12RootSignature_Release(rootSignature);
+        return NULL;
+    }
+    shader = (D3D12Shader *)SDL_calloc(1, sizeof(D3D12Shader));
+    SDL_zerop(shader);
+    shader->handle = handle;
+    shader->rootSignature = rootSignature;
+    shader->samplerCount = shaderCreateInfo->samplerCount;
+    shader->storageBufferCount = shaderCreateInfo->storageBufferCount;
+    shader->storageTextureCount = shaderCreateInfo->storageTextureCount;
+    shader->uniformBufferCount = shaderCreateInfo->uniformBufferCount;
+    if (shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX) {
+        /* Store the raw bytecode and its length for creating InputLayouts */
+        shader->bytecode = bytecode;
+        shader->bytecodeSize = bytecodeSize;
+    }
+
+    return (SDL_GpuShader *)shader;
+}
 
 SDL_GpuTexture *D3D12_CreateTexture(
     SDL_GpuRenderer *driverData,
@@ -1196,7 +1497,7 @@ void D3D12_Submit(
 
     while (window) {
         SDL_assert(window->activeWindow);
-        D3D12WindowData * nextWindow = window->nextWindow;
+        D3D12WindowData *nextWindow = window->nextWindow;
         window->nextWindow = NULL;
         window->activeWindow = FALSE;
         IDXGISwapChain3_Present(window->swapchain, 1, 0);
@@ -1567,6 +1868,15 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         return NULL;
     }
 
+    renderer->D3D12SerializeRootSignature_func = (PFN_D3D12_SERIALIZE_ROOT_SIGNATURE)SDL_LoadFunction(
+        renderer->d3d12_dll,
+        D3D12_SERIALIZE_ROOT_SIGNATURE_FUNC);
+    if (renderer->D3D12SerializeRootSignature_func == NULL) {
+        D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not load function: " D3D12_SERIALIZE_ROOT_SIGNATURE_FUNC);
+        return NULL;
+    }
+
     /* Create the D3D12Device */
     res = D3D12CreateDeviceFunc(
         (IUnknown *)renderer->adapter,
@@ -1633,12 +1943,12 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
     }
 
     res = ID3D12CommandAllocator_Reset(renderer->commandBuffer->commandAllocator);
-        if (FAILED(res)) {
+    if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
         ERROR_CHECK_RETURN("Could not reset commandAllocator", NULL);
     }
     res = ID3D12GraphicsCommandList2_Reset(renderer->commandBuffer->graphicsCommandList, renderer->commandBuffer->commandAllocator, NULL);
-        if (FAILED(res)) {
+    if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
         ERROR_CHECK_RETURN("Could not reset graphicsCommandList", NULL);
     }
