@@ -214,6 +214,59 @@ static DXGI_FORMAT SDLToD3D12_TextureFormat[] = {
     DXGI_FORMAT_D32_FLOAT_S8X24_UINT, /* D32_SFLOAT_S8_UINT */
 };
 
+static D3D12_COMPARISON_FUNC SDLToD3D12_CompareOp[] = {
+    D3D12_COMPARISON_FUNC_NEVER,         /* NEVER */
+    D3D12_COMPARISON_FUNC_LESS,          /* LESS */
+    D3D12_COMPARISON_FUNC_EQUAL,         /* EQUAL */
+    D3D12_COMPARISON_FUNC_LESS_EQUAL,    /* LESS_OR_EQUAL */
+    D3D12_COMPARISON_FUNC_GREATER,       /* GREATER */
+    D3D12_COMPARISON_FUNC_NOT_EQUAL,     /* NOT_EQUAL */
+    D3D12_COMPARISON_FUNC_GREATER_EQUAL, /* GREATER_OR_EQUAL */
+    D3D12_COMPARISON_FUNC_ALWAYS         /* ALWAYS */
+};
+
+static D3D12_STENCIL_OP SDLToD3D12_StencilOp[] = {
+    D3D12_STENCIL_OP_KEEP,     /* KEEP */
+    D3D12_STENCIL_OP_ZERO,     /* ZERO */
+    D3D12_STENCIL_OP_REPLACE,  /* REPLACE */
+    D3D12_STENCIL_OP_INCR_SAT, /* INCREMENT_AND_CLAMP */
+    D3D12_STENCIL_OP_DECR_SAT, /* DECREMENT_AND_CLAMP */
+    D3D12_STENCIL_OP_INVERT,   /* INVERT */
+    D3D12_STENCIL_OP_INCR,     /* INCREMENT_AND_WRAP */
+    D3D12_STENCIL_OP_DECR      /* DECREMENT_AND_WRAP */
+};
+
+static D3D12_CULL_MODE SDLToD3D12_CullMode[] = {
+    D3D12_CULL_MODE_NONE,  /* NONE */
+    D3D12_CULL_MODE_FRONT, /* FRONT */
+    D3D12_CULL_MODE_BACK   /* BACK */
+};
+
+static D3D12_FILL_MODE SDLToD3D12_FillMode[] = {
+    D3D12_FILL_MODE_SOLID,    /* FILL */
+    D3D12_FILL_MODE_WIREFRAME /* LINE */
+};
+
+static D3D12_FILL_MODE SDLToD3D12_InputRate[] = {
+    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,  /* VERTEX */
+    D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA /* INSTANCE */
+};
+
+static DXGI_FORMAT SDLToD3D12_VertexFormat[] = {
+    DXGI_FORMAT_R32_UINT,           /* UINT */
+    DXGI_FORMAT_R32_FLOAT,          /* FLOAT */
+    DXGI_FORMAT_R32G32_FLOAT,       /* VECTOR2 */
+    DXGI_FORMAT_R32G32B32_FLOAT,    /* VECTOR3 */
+    DXGI_FORMAT_R32G32B32A32_FLOAT, /* VECTOR4 */
+    DXGI_FORMAT_R8G8B8A8_UNORM,     /* COLOR */
+    DXGI_FORMAT_R8G8B8A8_UINT,      /* BYTE4 */
+    DXGI_FORMAT_R16G16_SINT,        /* SHORT2 */
+    DXGI_FORMAT_R16G16B16A16_SINT,  /* SHORT4 */
+    DXGI_FORMAT_R16G16_SNORM,       /* NORMALIZEDSHORT2 */
+    DXGI_FORMAT_R16G16B16A16_SNORM, /* NORMALIZEDSHORT4 */
+    DXGI_FORMAT_R16G16_FLOAT,       /* HALFVECTOR2 */
+    DXGI_FORMAT_R16G16B16A16_FLOAT  /* HALFVECTOR4 */
+};
 
 /* Structures */
 typedef struct D3D12Renderer D3D12Renderer;
@@ -671,30 +724,8 @@ SDL_bool D3D12_INTERNAL_ConvertRasterizerState(SDL_GpuRasterizerState rasterizer
     if (!desc)
         return SDL_FALSE;
 
-    switch (rasterizerState.fillMode) {
-    case SDL_GPU_FILLMODE_FILL:
-        desc->FillMode = D3D12_FILL_MODE_SOLID;
-        break;
-    case SDL_GPU_FILLMODE_LINE:
-        desc->FillMode = D3D12_FILL_MODE_WIREFRAME;
-        break;
-    default:
-        return SDL_FALSE;
-    }
-
-    switch (rasterizerState.cullMode) {
-    case SDL_GPU_CULLMODE_NONE:
-        desc->CullMode = D3D12_CULL_MODE_NONE;
-        break;
-    case SDL_GPU_CULLMODE_FRONT:
-        desc->CullMode = D3D12_CULL_MODE_FRONT;
-        break;
-    case SDL_GPU_CULLMODE_BACK:
-        desc->CullMode = D3D12_CULL_MODE_BACK;
-        break;
-    default:
-        return SDL_FALSE;
-    }
+    desc->FillMode = SDLToD3D12_FillMode[rasterizerState.fillMode];
+    desc->CullMode = SDLToD3D12_CullMode[rasterizerState.cullMode];
 
     switch (rasterizerState.frontFace) {
     case SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE:
@@ -773,6 +804,53 @@ SDL_bool D3D12_INTERNAL_ConvertBlendState(SDL_GpuGraphicsPipelineCreateInfo *pip
     return SDL_TRUE;
 }
 
+SDL_bool D3D12_INTERNAL_ConvertDepthStencilState(SDL_GpuDepthStencilState depthStencilState, D3D12_DEPTH_STENCIL_DESC *desc)
+{
+    if (desc == NULL) {
+        return SDL_FALSE;
+    }
+
+    desc->DepthEnable = depthStencilState.depthTestEnable == SDL_TRUE ? TRUE : FALSE;
+    desc->DepthWriteMask = depthStencilState.depthWriteEnable == SDL_TRUE ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+    desc->DepthFunc = SDLToD3D12_CompareOp[depthStencilState.compareOp];
+    desc->StencilEnable = depthStencilState.stencilTestEnable == SDL_TRUE ? TRUE : FALSE;
+    desc->StencilReadMask = (UINT8)depthStencilState.compareMask;
+    desc->StencilWriteMask = (UINT8)depthStencilState.writeMask;
+
+    desc->FrontFace.StencilFailOp = SDLToD3D12_StencilOp[depthStencilState.frontStencilState.failOp];
+    desc->FrontFace.StencilDepthFailOp = SDLToD3D12_StencilOp[depthStencilState.frontStencilState.depthFailOp];
+    desc->FrontFace.StencilPassOp = SDLToD3D12_StencilOp[depthStencilState.frontStencilState.passOp];
+    desc->FrontFace.StencilFunc = SDLToD3D12_CompareOp[depthStencilState.frontStencilState.compareOp];
+
+    desc->BackFace.StencilFailOp = SDLToD3D12_StencilOp[depthStencilState.backStencilState.failOp];
+    desc->BackFace.StencilDepthFailOp = SDLToD3D12_StencilOp[depthStencilState.backStencilState.depthFailOp];
+    desc->BackFace.StencilPassOp = SDLToD3D12_StencilOp[depthStencilState.backStencilState.passOp];
+    desc->BackFace.StencilFunc = SDLToD3D12_CompareOp[depthStencilState.backStencilState.compareOp];
+
+    return SDL_TRUE;
+}
+
+SDL_bool D3D12_INTERNAL_ConvertVertexInputState(SDL_GpuVertexInputState vertexInputState, D3D12_INPUT_ELEMENT_DESC *desc)
+{
+    if (desc == NULL || vertexInputState.vertexAttributeCount == 0) {
+        return FALSE;
+    }
+
+    for (Uint32 i = 0; i < vertexInputState.vertexAttributeCount; ++i) {
+        SDL_GpuVertexAttribute attribute = vertexInputState.vertexAttributes[i];
+
+        desc[i].SemanticName = "TEXCOORD"; // Default to TEXCOORD, can be adjusted as needed
+        desc[i].SemanticIndex = attribute.location;
+        desc[i].Format = SDLToD3D12_VertexFormat[attribute.format];
+        desc[i].InputSlot = attribute.binding;
+        desc[i].AlignedByteOffset = attribute.offset;
+        desc[i].InputSlotClass = SDLToD3D12_InputRate[vertexInputState.vertexBindings[attribute.binding].inputRate];
+        desc[i].InstanceDataStepRate = vertexInputState.vertexBindings[attribute.binding].stepRate;
+    }
+
+    return TRUE;
+}
+
 SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
     SDL_GpuRenderer *driverData,
     SDL_GpuGraphicsPipelineCreateInfo *pipelineCreateInfo)
@@ -786,62 +864,65 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
     Uint32 storageBufferCount = max(vertShader->storageBufferCount, fragShader->storageBufferCount);
     Uint32 storageTextureCount = max(vertShader->storageTextureCount, fragShader->storageTextureCount);
 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = { 0 };
+    SDL_zero(psoDesc);
+    psoDesc.VS.pShaderBytecode = vertShader->bytecode;
+    psoDesc.VS.BytecodeLength = vertShader->bytecodeSize;
+    psoDesc.PS.pShaderBytecode = fragShader->bytecode;
+    psoDesc.PS.BytecodeLength = fragShader->bytecodeSize;
+
+    D3D12_INPUT_ELEMENT_DESC inputElementDescs[D3D12_IA_VERTEX_INPUT_STRUCTURE_ELEMENT_COUNT];
+    if (pipelineCreateInfo->vertexInputState.vertexAttributeCount > 0) {
+        psoDesc.InputLayout.pInputElementDescs = inputElementDescs;
+        psoDesc.InputLayout.NumElements = pipelineCreateInfo->vertexInputState.vertexAttributeCount;
+        D3D12_INTERNAL_ConvertVertexInputState(pipelineCreateInfo->vertexInputState, inputElementDescs);
+    }
+
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+    if (!D3D12_INTERNAL_ConvertRasterizerState(pipelineCreateInfo->rasterizerState, &psoDesc.RasterizerState))
+        return NULL;
+    if (!D3D12_INTERNAL_ConvertBlendState(pipelineCreateInfo, &psoDesc.BlendState))
+        return NULL;
+    if (!D3D12_INTERNAL_ConvertDepthStencilState(pipelineCreateInfo->depthStencilState, &psoDesc.DepthStencilState))
+        return NULL;
+
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.SampleDesc.Count = pipelineCreateInfo->multisampleState.multisampleCount;
+    psoDesc.SampleDesc.Quality = 0;
+
+    psoDesc.DSVFormat = pipelineCreateInfo->attachmentInfo.depthStencilFormat;
+    psoDesc.NumRenderTargets = pipelineCreateInfo->attachmentInfo.colorAttachmentCount;
+    for (uint32_t i = 0; i < pipelineCreateInfo->attachmentInfo.colorAttachmentCount; ++i) {
+        psoDesc.RTVFormats[i] = SDLToD3D12_TextureFormat[pipelineCreateInfo->attachmentInfo.colorAttachmentDescriptions[i].format];
+    }
+
+    // Assuming some default values or further initialization
+    psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+    psoDesc.CachedPSO.CachedBlobSizeInBytes = 0;
+    psoDesc.CachedPSO.pCachedBlob = NULL;
+
+    psoDesc.NodeMask = 0;
+
     ID3D12RootSignature *rootSignature = D3D12_INTERNAL_CreateRootSignature(renderer, renderer->device, samplerCount, uniformBufferCount, storageBufferCount, storageTextureCount);
     if (!rootSignature) {
         return NULL;
     }
+    psoDesc.pRootSignature = rootSignature;
     ID3D12PipelineState *pipelineState = NULL;
-    {
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-        SDL_zero(psoDesc);
-        psoDesc.pRootSignature = rootSignature;
-        psoDesc.VS.pShaderBytecode = vertShader->bytecode;
-        psoDesc.VS.BytecodeLength = vertShader->bytecodeSize;
-        psoDesc.PS.pShaderBytecode = fragShader->bytecode;
-        psoDesc.PS.BytecodeLength = fragShader->bytecodeSize;
 
-        psoDesc.InputLayout.NumElements = pipelineCreateInfo->vertexInputState.{ pipelineCreateInfo.vertexInputState.elements, pipelineCreateInfo.vertexInputState.elementCount };
-        psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // Assume triangle for primitive type
-
-        D3D12_INTERNAL_ConvertRasterizerState(pipelineCreateInfo->rasterizerState, &psoDesc.RasterizerState);
-        D3D12_INTERNAL_ConvertBlendState(pipelineCreateInfo, &psoDesc.BlendState);
-        psoDesc.BlendState = {
-            /* Fill out blend state using sdlPipelineInfo.attachmentInfo and sdlPipelineInfo.blendConstants */
-        };
-        psoDesc.DepthStencilState = {
-            /* Fill out depth stencil state using sdlPipelineInfo.depthStencilState */
-        };
-        psoDesc.SampleMask = UINT_MAX;
-        psoDesc.SampleDesc.Count = pipelineCreateInfo->multisampleState.multisampleCount;
-        psoDesc.SampleDesc.Quality = 0;
-
-        psoDesc.DSVFormat = pipelineCreateInfo->attachmentInfo.depthStencilFormat;
-        psoDesc.NumRenderTargets = pipelineCreateInfo->attachmentInfo.colorAttachmentCount;
-        for (uint32_t i = 0; i < pipelineCreateInfo->attachmentInfo.colorAttachmentCount; ++i) {
-            psoDesc.RTVFormats[i] = SDLToD3D12_TextureFormat[pipelineCreateInfo->attachmentInfo.colorAttachmentDescriptions[i].format];
-        }
-
-        // Setting the blend constants
-        // memcpy(psoDesc.BlendState.BlendFactor, pipelineCreateInfo.blendConstants, sizeof(pipelineCreateInfo.blendConstants));
-        // fully wrong
-
-        // Assuming some default values or further initialization
-        psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-        psoDesc.CachedPSO = { 0 };
-        psoDesc.NodeMask = 0;
-
-        HRESULT res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
-        if (FAILED(res)) {
-            D3D12_INTERNAL_LogError(renderer->device, "Could not create graphics pipeline state", res);
-            ID3D12RootSignature_Release(rootSignature);
-            return NULL;
-        }
+    HRESULT res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
+    if (FAILED(res)) {
+        D3D12_INTERNAL_LogError(renderer->device, "Could not create graphics pipeline state", res);
+        ID3D12RootSignature_Release(rootSignature);
+        return NULL;
     }
+
     D3D12GraphicsPipeline *pipeline = (D3D12GraphicsPipeline *)SDL_calloc(1, sizeof(D3D12GraphicsPipeline));
     SDL_zerop(pipeline);
     pipeline->pipelineState = pipelineState;
     pipeline->rootSignature = rootSignature;
-    return pipeline;
+    return (SDL_GpuGraphicsPipeline*)pipeline;
 }
 
 SDL_GpuSampler *D3D12_CreateSampler(
