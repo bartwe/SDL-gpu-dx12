@@ -116,6 +116,8 @@ static const IID SDL_IID_ID3D12Fence = { 0x0a753dcf, 0xc4d8, 0x4b91, { 0xad, 0xf
 static const IID SDL_IID_ID3D12RootSignature = { 0xc54a6b66, 0x72df, 0x4ee8, { 0x8b, 0xe5, 0xa9, 0x46, 0xa1, 0x42, 0x92, 0x14 } };
 static const IID SDL_IID_ID3D12PipelineState = { 0x765a30f3, 0xf624, 0x4c6f, { 0xa8, 0x28, 0xac, 0xe9, 0x48, 0x62, 0x24, 0x45 } };
 
+static const char *D3D12ShaderProfiles[3] = { "vs_5_1", "ps_5_1", "cs_5_1" };
+
 /* Conversions */
 
 static DXGI_FORMAT SwapchainCompositionToTextureFormat[] = {
@@ -132,12 +134,94 @@ static DXGI_COLOR_SPACE_TYPE SwapchainCompositionToColorSpace[] = {
     DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 /* HDR_ADVANCED */
 };
 
+static D3D12_BLEND SDLToD3D12_BlendFactor[] = {
+    D3D12_BLEND_ZERO,             /* ZERO */
+    D3D12_BLEND_ONE,              /* ONE */
+    D3D12_BLEND_SRC_COLOR,        /* SRC_COLOR */
+    D3D12_BLEND_INV_SRC_COLOR,    /* ONE_MINUS_SRC_COLOR */
+    D3D12_BLEND_DEST_COLOR,       /* DST_COLOR */
+    D3D12_BLEND_INV_DEST_COLOR,   /* ONE_MINUS_DST_COLOR */
+    D3D12_BLEND_SRC_ALPHA,        /* SRC_ALPHA */
+    D3D12_BLEND_INV_SRC_ALPHA,    /* ONE_MINUS_SRC_ALPHA */
+    D3D12_BLEND_DEST_ALPHA,       /* DST_ALPHA */
+    D3D12_BLEND_INV_DEST_ALPHA,   /* ONE_MINUS_DST_ALPHA */
+    D3D12_BLEND_BLEND_FACTOR,     /* CONSTANT_COLOR */
+    D3D12_BLEND_INV_BLEND_FACTOR, /* ONE_MINUS_CONSTANT_COLOR */
+    D3D12_BLEND_SRC_ALPHA_SAT,    /* SRC_ALPHA_SATURATE */
+};
+
+static D3D12_BLEND SDLToD3D12_BlendFactorAlpha[] = {
+    D3D12_BLEND_ZERO,             /* ZERO */
+    D3D12_BLEND_ONE,              /* ONE */
+    D3D12_BLEND_SRC_ALPHA,        /* SRC_COLOR */
+    D3D12_BLEND_INV_SRC_ALPHA,    /* ONE_MINUS_SRC_COLOR */
+    D3D12_BLEND_DEST_ALPHA,       /* DST_COLOR */
+    D3D12_BLEND_INV_DEST_ALPHA,   /* ONE_MINUS_DST_COLOR */
+    D3D12_BLEND_SRC_ALPHA,        /* SRC_ALPHA */
+    D3D12_BLEND_INV_SRC_ALPHA,    /* ONE_MINUS_SRC_ALPHA */
+    D3D12_BLEND_DEST_ALPHA,       /* DST_ALPHA */
+    D3D12_BLEND_INV_DEST_ALPHA,   /* ONE_MINUS_DST_ALPHA */
+    D3D12_BLEND_BLEND_FACTOR,     /* CONSTANT_COLOR */
+    D3D12_BLEND_INV_BLEND_FACTOR, /* ONE_MINUS_CONSTANT_COLOR */
+    D3D12_BLEND_SRC_ALPHA_SAT,    /* SRC_ALPHA_SATURATE */
+};
+
+static D3D12_BLEND_OP SDLToD3D12_BlendOp[] = {
+    D3D12_BLEND_OP_ADD,          /* ADD */
+    D3D12_BLEND_OP_SUBTRACT,     /* SUBTRACT */
+    D3D12_BLEND_OP_REV_SUBTRACT, /* REVERSE_SUBTRACT */
+    D3D12_BLEND_OP_MIN,          /* MIN */
+    D3D12_BLEND_OP_MAX           /* MAX */
+};
+
+static DXGI_FORMAT SDLToD3D12_TextureFormat[] = {
+    DXGI_FORMAT_R8G8B8A8_UNORM,       /* R8G8B8A8 */
+    DXGI_FORMAT_B8G8R8A8_UNORM,       /* B8G8R8A8 */
+    DXGI_FORMAT_B5G6R5_UNORM,         /* B5G6R5 */
+    DXGI_FORMAT_B5G5R5A1_UNORM,       /* B5G5R5A1 */
+    DXGI_FORMAT_B4G4R4A4_UNORM,       /* B4G4R4A4 */
+    DXGI_FORMAT_R10G10B10A2_UNORM,    /* R10G10B10A2 */
+    DXGI_FORMAT_R16G16_UNORM,         /* R16G16 */
+    DXGI_FORMAT_R16G16B16A16_UNORM,   /* R16G16B16A16 */
+    DXGI_FORMAT_R8_UNORM,             /* R8 */
+    DXGI_FORMAT_A8_UNORM,             /* A8 */
+    DXGI_FORMAT_BC1_UNORM,            /* BC1 */
+    DXGI_FORMAT_BC2_UNORM,            /* BC2 */
+    DXGI_FORMAT_BC3_UNORM,            /* BC3 */
+    DXGI_FORMAT_BC7_UNORM,            /* BC7 */
+    DXGI_FORMAT_R8G8_SNORM,           /* R8G8_SNORM */
+    DXGI_FORMAT_R8G8B8A8_SNORM,       /* R8G8B8A8_SNORM */
+    DXGI_FORMAT_R16_FLOAT,            /* R16_SFLOAT */
+    DXGI_FORMAT_R16G16_FLOAT,         /* R16G16_SFLOAT */
+    DXGI_FORMAT_R16G16B16A16_FLOAT,   /* R16G16B16A16_SFLOAT */
+    DXGI_FORMAT_R32_FLOAT,            /* R32_SFLOAT */
+    DXGI_FORMAT_R32G32_FLOAT,         /* R32G32_SFLOAT */
+    DXGI_FORMAT_R32G32B32A32_FLOAT,   /* R32G32B32A32_SFLOAT */
+    DXGI_FORMAT_R8_UINT,              /* R8_UINT */
+    DXGI_FORMAT_R8G8_UINT,            /* R8G8_UINT */
+    DXGI_FORMAT_R8G8B8A8_UINT,        /* R8G8B8A8_UINT */
+    DXGI_FORMAT_R16_UINT,             /* R16_UINT */
+    DXGI_FORMAT_R16G16_UINT,          /* R16G16_UINT */
+    DXGI_FORMAT_R16G16B16A16_UINT,    /* R16G16B16A16_UINT */
+    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,  /* R8G8B8A8_SRGB */
+    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,  /* B8G8R8A8_SRGB */
+    DXGI_FORMAT_BC3_UNORM_SRGB,       /* BC3_SRGB */
+    DXGI_FORMAT_BC7_UNORM_SRGB,       /* BC7_SRGB */
+    DXGI_FORMAT_D16_UNORM,            /* D16_UNORM */
+    DXGI_FORMAT_D24_UNORM_S8_UINT,    /* D24_UNORM */
+    DXGI_FORMAT_D32_FLOAT,            /* D32_SFLOAT */
+    DXGI_FORMAT_D24_UNORM_S8_UINT,    /* D24_UNORM_S8_UINT */
+    DXGI_FORMAT_D32_FLOAT_S8X24_UINT, /* D32_SFLOAT_S8_UINT */
+};
+
+
 /* Structures */
 typedef struct D3D12Renderer D3D12Renderer;
 typedef struct D3D12CommandBuffer D3D12CommandBuffer;
 typedef struct D3D12WindowData D3D12WindowData;
 typedef struct D3D12Texture D3D12Texture;
 typedef struct D3D12Shader D3D12Shader;
+typedef struct D3D12GraphicsPipeline D3D12GraphicsPipeline;
 
 struct D3D12WindowData
 {
@@ -211,8 +295,7 @@ struct D3D12CommandBuffer
 
 struct D3D12Shader
 {
-    ID3D12PipelineState *handle;
-    ID3D12RootSignature *rootSignature;
+    // todo cleanup
     void *bytecode;
     size_t bytecodeSize;
 
@@ -220,6 +303,14 @@ struct D3D12Shader
     Uint32 uniformBufferCount;
     Uint32 storageBufferCount;
     Uint32 storageTextureCount;
+};
+
+struct D3D12GraphicsPipeline
+{
+    // todo cleanup
+    ID3D12PipelineState *pipelineState;
+    // todo cleanup
+    ID3D12RootSignature *rootSignature;
 };
 
 /* Logging */
@@ -366,26 +457,14 @@ void D3D12_DestroyDevice(SDL_GpuDevice *device)
 
 /* State Creation */
 
-SDL_GpuComputePipeline *D3D12_CreateComputePipeline(
-    SDL_GpuRenderer *driverData,
-    SDL_GpuComputePipelineCreateInfo *pipelineCreateInfo) { SDL_assert(SDL_FALSE); }
-
-SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
-    SDL_GpuRenderer *driverData,
-    SDL_GpuGraphicsPipelineCreateInfo *pipelineCreateInfo) { SDL_assert(SDL_FALSE); }
-
-SDL_GpuSampler *D3D12_CreateSampler(
-    SDL_GpuRenderer *driverData,
-    SDL_GpuSamplerCreateInfo *samplerCreateInfo) { SDL_assert(SDL_FALSE); }
-
-ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer, ID3D12Device *device, const SDL_GpuShaderCreateInfo *shaderCreateInfo)
+ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer, ID3D12Device *device, Uint32 samplerCount, Uint32 uniformBufferCount, Uint32 storageBufferCount, Uint32 storageTextureCount)
 {
     D3D12_ROOT_PARAMETER rootParameters[MAX_ROOT_SIGNATURE_PARAMETERS];
     D3D12_DESCRIPTOR_RANGE descriptorRanges[MAX_ROOT_SIGNATURE_PARAMETERS];
     UINT parameterCount = 0;
 
     // Define descriptor ranges for uniform buffers
-    if (shaderCreateInfo->uniformBufferCount > 0) {
+    if (uniformBufferCount > 0) {
         if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
@@ -393,7 +472,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
 
         D3D12_DESCRIPTOR_RANGE descriptorRange = {};
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-        descriptorRange.NumDescriptors = shaderCreateInfo->uniformBufferCount;
+        descriptorRange.NumDescriptors = uniformBufferCount;
         descriptorRange.BaseShaderRegister = 0;
         descriptorRange.RegisterSpace = 0;
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -409,14 +488,14 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
     }
 
     // Define descriptor ranges for storage buffers
-    if (shaderCreateInfo->storageBufferCount > 0) {
+    if (storageBufferCount > 0) {
         if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
         }
         D3D12_DESCRIPTOR_RANGE descriptorRange = {};
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-        descriptorRange.NumDescriptors = shaderCreateInfo->storageBufferCount;
+        descriptorRange.NumDescriptors = storageBufferCount;
         descriptorRange.BaseShaderRegister = 0;
         descriptorRange.RegisterSpace = 0;
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -432,14 +511,14 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
     }
 
     // Define descriptor ranges for storage textures
-    if (shaderCreateInfo->storageTextureCount > 0) {
+    if (storageTextureCount > 0) {
         if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
         }
         D3D12_DESCRIPTOR_RANGE descriptorRange = {};
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-        descriptorRange.NumDescriptors = shaderCreateInfo->storageTextureCount;
+        descriptorRange.NumDescriptors = storageTextureCount;
         descriptorRange.BaseShaderRegister = 0;
         descriptorRange.RegisterSpace = 0;
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -455,14 +534,14 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
     }
 
     // Define descriptor ranges for samplers
-    if (shaderCreateInfo->samplerCount > 0) {
+    if (samplerCount > 0) {
         if (parameterCount >= MAX_ROOT_SIGNATURE_PARAMETERS) {
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
         }
         D3D12_DESCRIPTOR_RANGE descriptorRange = {};
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-        descriptorRange.NumDescriptors = shaderCreateInfo->samplerCount;
+        descriptorRange.NumDescriptors = samplerCount;
         descriptorRange.BaseShaderRegister = 0;
         descriptorRange.RegisterSpace = 0;
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -519,9 +598,8 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
     return rootSignature;
 }
 
-static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
+static BOOL D3D12_INTERNAL_CreateShaderBytecode(
     D3D12Renderer *renderer,
-    ID3D12RootSignature *rootSignature,
     Uint32 stage,
     SDL_GpuShaderFormat format,
     const Uint8 *code,
@@ -530,12 +608,10 @@ static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
     void **pBytecode,
     size_t *pBytecodeSize)
 {
-    const char *profiles[3] = { "vs_5_1", "ps_5_1", "cs_5_1" };
     ID3DBlob *blob = NULL;
     ID3DBlob *errorBlob = NULL;
     const Uint8 *bytecode;
     size_t bytecodeSize;
-    ID3D12PipelineState *pipelineState = NULL;
     HRESULT res;
 
     if (format == SDL_GPU_SHADERFORMAT_HLSL) {
@@ -546,7 +622,7 @@ static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
             NULL,
             NULL,
             entryPointName,
-            profiles[stage],
+            D3D12ShaderProfiles[stage],
             0,
             0,
             &blob,
@@ -558,7 +634,7 @@ static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
             }
             if (blob)
                 ID3D10Blob_Release(blob);
-            return NULL;
+            return FALSE;
         }
         if (errorBlob)
             ID3D10Blob_Release(errorBlob);
@@ -569,41 +645,7 @@ static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
         bytecodeSize = codeSize;
     } else {
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "Incompatible shader format for D3D12");
-        return NULL;
-    }
-
-    // Create pipeline state from the bytecode
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    SDL_zero(psoDesc);
-    psoDesc.pRootSignature = rootSignature;
-
-    if (stage == SDL_GPU_SHADERSTAGE_COMPUTE) {
-        D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc = {};
-        computePsoDesc.pRootSignature = rootSignature;
-        computePsoDesc.CS.pShaderBytecode = bytecode;
-        computePsoDesc.CS.BytecodeLength = bytecodeSize;
-        res = ID3D12Device_CreateComputePipelineState(renderer->device, &computePsoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
-        if (FAILED(res)) {
-            D3D12_INTERNAL_LogError(renderer->device, "Could not create compute pipeline state", res);
-            return NULL;
-        }
-    } else {
-
-        if (stage == SDL_GPU_SHADERSTAGE_VERTEX) {
-            psoDesc.VS.pShaderBytecode = bytecode;
-            psoDesc.VS.BytecodeLength = bytecodeSize;
-        } else if (stage == SDL_GPU_SHADERSTAGE_FRAGMENT) {
-            psoDesc.PS.pShaderBytecode = bytecode;
-            psoDesc.PS.BytecodeLength = bytecodeSize;
-        } else {
-            // Handle other stages if necessary
-            SDL_assert(FALSE);
-        }
-        res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
-        if (FAILED(res)) {
-            D3D12_INTERNAL_LogError(renderer->device, "Could not create graphics pipeline state", res);
-            return NULL;
-        }
+        return FALSE;
     }
 
     if (pBytecode != NULL) {
@@ -617,41 +659,217 @@ static ID3D12PipelineState *D3D12_INTERNAL_CreatePipelineState(
         ID3D10Blob_Release(blob);
     }
 
-    return pipelineState;
+    return TRUE;
 }
+
+SDL_GpuComputePipeline *D3D12_CreateComputePipeline(
+    SDL_GpuRenderer *driverData,
+    SDL_GpuComputePipelineCreateInfo *pipelineCreateInfo) { SDL_assert(SDL_FALSE); }
+
+SDL_bool D3D12_INTERNAL_ConvertRasterizerState(SDL_GpuRasterizerState rasterizerState, D3D12_RASTERIZER_DESC *desc)
+{
+    if (!desc)
+        return SDL_FALSE;
+
+    switch (rasterizerState.fillMode) {
+    case SDL_GPU_FILLMODE_FILL:
+        desc->FillMode = D3D12_FILL_MODE_SOLID;
+        break;
+    case SDL_GPU_FILLMODE_LINE:
+        desc->FillMode = D3D12_FILL_MODE_WIREFRAME;
+        break;
+    default:
+        return SDL_FALSE;
+    }
+
+    switch (rasterizerState.cullMode) {
+    case SDL_GPU_CULLMODE_NONE:
+        desc->CullMode = D3D12_CULL_MODE_NONE;
+        break;
+    case SDL_GPU_CULLMODE_FRONT:
+        desc->CullMode = D3D12_CULL_MODE_FRONT;
+        break;
+    case SDL_GPU_CULLMODE_BACK:
+        desc->CullMode = D3D12_CULL_MODE_BACK;
+        break;
+    default:
+        return SDL_FALSE;
+    }
+
+    switch (rasterizerState.frontFace) {
+    case SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE:
+        desc->FrontCounterClockwise = TRUE;
+        break;
+    case SDL_GPU_FRONTFACE_CLOCKWISE:
+        desc->FrontCounterClockwise = FALSE;
+        break;
+    default:
+        return SDL_FALSE;
+    }
+
+    if (rasterizerState.depthBiasEnable) {
+        desc->DepthBias = SDL_lroundf(rasterizerState.depthBiasConstantFactor);
+        desc->DepthBiasClamp = rasterizerState.depthBiasClamp;
+        desc->SlopeScaledDepthBias = rasterizerState.depthBiasSlopeFactor;
+    } else {
+        desc->DepthBias = 0;
+        desc->DepthBiasClamp = 0.0f;
+        desc->SlopeScaledDepthBias = 0.0f;
+    }
+
+    desc->DepthClipEnable = TRUE;
+    desc->MultisampleEnable = FALSE;
+    desc->AntialiasedLineEnable = FALSE;
+    desc->ForcedSampleCount = 0;
+    desc->ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+    return SDL_TRUE;
+}
+
+SDL_bool D3D12_INTERNAL_ConvertBlendState(SDL_GpuGraphicsPipelineCreateInfo *pipelineInfo, D3D12_BLEND_DESC *blendDesc)
+{
+    if (!blendDesc)
+        return SDL_FALSE;
+
+    SDL_zerop(blendDesc);
+    blendDesc->AlphaToCoverageEnable = FALSE;
+    blendDesc->IndependentBlendEnable = FALSE;
+
+    for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i) {
+        D3D12_RENDER_TARGET_BLEND_DESC rtBlendDesc = { 0 };
+        rtBlendDesc.BlendEnable = FALSE;
+        rtBlendDesc.LogicOpEnable = FALSE;
+        rtBlendDesc.SrcBlend = D3D12_BLEND_ONE;
+        rtBlendDesc.DestBlend = D3D12_BLEND_ZERO;
+        rtBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+        rtBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+        rtBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+        rtBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        rtBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+        rtBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+        // If attachmentInfo has more blend states, you can set IndependentBlendEnable to TRUE and assign different blend states to each render target slot
+        if (i < pipelineInfo->attachmentInfo.colorAttachmentCount) {
+
+            SDL_GpuColorAttachmentBlendState sdlBlendState = pipelineInfo->attachmentInfo.colorAttachmentDescriptions[i].blendState;
+
+            rtBlendDesc.BlendEnable = sdlBlendState.blendEnable;
+            rtBlendDesc.SrcBlend = SDLToD3D12_BlendFactor[sdlBlendState.srcColorBlendFactor];
+            rtBlendDesc.DestBlend = SDLToD3D12_BlendFactor[sdlBlendState.dstColorBlendFactor];
+            rtBlendDesc.BlendOp = SDLToD3D12_BlendOp[sdlBlendState.colorBlendOp];
+            rtBlendDesc.SrcBlendAlpha = SDLToD3D12_BlendFactorAlpha[sdlBlendState.srcAlphaBlendFactor];
+            rtBlendDesc.DestBlendAlpha = SDLToD3D12_BlendFactorAlpha[sdlBlendState.dstAlphaBlendFactor];
+            rtBlendDesc.BlendOpAlpha = SDLToD3D12_BlendOp[sdlBlendState.alphaBlendOp];
+            SDL_assert(sdlBlendState.colorWriteMask <= UINT8_MAX);
+            rtBlendDesc.RenderTargetWriteMask = (UINT8)sdlBlendState.colorWriteMask;
+
+            if (i > 0)
+                blendDesc->IndependentBlendEnable = TRUE;
+        }
+
+        blendDesc->RenderTarget[i] = rtBlendDesc;
+    }
+
+    return SDL_TRUE;
+}
+
+SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
+    SDL_GpuRenderer *driverData,
+    SDL_GpuGraphicsPipelineCreateInfo *pipelineCreateInfo)
+{
+    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+    D3D12Shader *vertShader = (D3D12Shader *)pipelineCreateInfo->vertexShader;
+    D3D12Shader *fragShader = (D3D12Shader *)pipelineCreateInfo->fragmentShader;
+
+    Uint32 samplerCount = max(vertShader->samplerCount, fragShader->samplerCount);
+    Uint32 uniformBufferCount = max(vertShader->uniformBufferCount, fragShader->uniformBufferCount);
+    Uint32 storageBufferCount = max(vertShader->storageBufferCount, fragShader->storageBufferCount);
+    Uint32 storageTextureCount = max(vertShader->storageTextureCount, fragShader->storageTextureCount);
+
+    ID3D12RootSignature *rootSignature = D3D12_INTERNAL_CreateRootSignature(renderer, renderer->device, samplerCount, uniformBufferCount, storageBufferCount, storageTextureCount);
+    if (!rootSignature) {
+        return NULL;
+    }
+    ID3D12PipelineState *pipelineState = NULL;
+    {
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+        SDL_zero(psoDesc);
+        psoDesc.pRootSignature = rootSignature;
+        psoDesc.VS.pShaderBytecode = vertShader->bytecode;
+        psoDesc.VS.BytecodeLength = vertShader->bytecodeSize;
+        psoDesc.PS.pShaderBytecode = fragShader->bytecode;
+        psoDesc.PS.BytecodeLength = fragShader->bytecodeSize;
+
+        psoDesc.InputLayout.NumElements = pipelineCreateInfo->vertexInputState.{ pipelineCreateInfo.vertexInputState.elements, pipelineCreateInfo.vertexInputState.elementCount };
+        psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // Assume triangle for primitive type
+
+        D3D12_INTERNAL_ConvertRasterizerState(pipelineCreateInfo->rasterizerState, &psoDesc.RasterizerState);
+        D3D12_INTERNAL_ConvertBlendState(pipelineCreateInfo, &psoDesc.BlendState);
+        psoDesc.BlendState = {
+            /* Fill out blend state using sdlPipelineInfo.attachmentInfo and sdlPipelineInfo.blendConstants */
+        };
+        psoDesc.DepthStencilState = {
+            /* Fill out depth stencil state using sdlPipelineInfo.depthStencilState */
+        };
+        psoDesc.SampleMask = UINT_MAX;
+        psoDesc.SampleDesc.Count = pipelineCreateInfo->multisampleState.multisampleCount;
+        psoDesc.SampleDesc.Quality = 0;
+
+        psoDesc.DSVFormat = pipelineCreateInfo->attachmentInfo.depthStencilFormat;
+        psoDesc.NumRenderTargets = pipelineCreateInfo->attachmentInfo.colorAttachmentCount;
+        for (uint32_t i = 0; i < pipelineCreateInfo->attachmentInfo.colorAttachmentCount; ++i) {
+            psoDesc.RTVFormats[i] = SDLToD3D12_TextureFormat[pipelineCreateInfo->attachmentInfo.colorAttachmentDescriptions[i].format];
+        }
+
+        // Setting the blend constants
+        // memcpy(psoDesc.BlendState.BlendFactor, pipelineCreateInfo.blendConstants, sizeof(pipelineCreateInfo.blendConstants));
+        // fully wrong
+
+        // Assuming some default values or further initialization
+        psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        psoDesc.CachedPSO = { 0 };
+        psoDesc.NodeMask = 0;
+
+        HRESULT res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_LogError(renderer->device, "Could not create graphics pipeline state", res);
+            ID3D12RootSignature_Release(rootSignature);
+            return NULL;
+        }
+    }
+    D3D12GraphicsPipeline *pipeline = (D3D12GraphicsPipeline *)SDL_calloc(1, sizeof(D3D12GraphicsPipeline));
+    SDL_zerop(pipeline);
+    pipeline->pipelineState = pipelineState;
+    pipeline->rootSignature = rootSignature;
+    return pipeline;
+}
+
+SDL_GpuSampler *D3D12_CreateSampler(
+    SDL_GpuRenderer *driverData,
+    SDL_GpuSamplerCreateInfo *samplerCreateInfo) { SDL_assert(SDL_FALSE); }
 
 SDL_GpuShader *D3D12_CreateShader(
     SDL_GpuRenderer *driverData,
     SDL_GpuShaderCreateInfo *shaderCreateInfo)
 {
     D3D12Renderer *renderer = (D3D12Renderer *)driverData;
-    ID3D12PipelineState *handle;
     void *bytecode;
     size_t bytecodeSize;
     D3D12Shader *shader;
 
-    ID3D12RootSignature *rootSignature = D3D12_INTERNAL_CreateRootSignature(renderer, renderer->device, shaderCreateInfo);
-    if (!rootSignature) {
-        return NULL;
-    }
-    handle = D3D12_INTERNAL_CreatePipelineState(
-        renderer,
-        rootSignature,
-        shaderCreateInfo->stage,
-        shaderCreateInfo->format,
-        shaderCreateInfo->code,
-        shaderCreateInfo->codeSize,
-        shaderCreateInfo->entryPointName,
-        shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecode : NULL,
-        shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecodeSize : NULL);
-    if (!handle) {
-        ID3D12RootSignature_Release(rootSignature);
+    if (!D3D12_INTERNAL_CreateShaderBytecode(
+            renderer,
+            shaderCreateInfo->stage,
+            shaderCreateInfo->format,
+            shaderCreateInfo->code,
+            shaderCreateInfo->codeSize,
+            shaderCreateInfo->entryPointName,
+            shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecode : NULL,
+            shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecodeSize : NULL)) {
         return NULL;
     }
     shader = (D3D12Shader *)SDL_calloc(1, sizeof(D3D12Shader));
     SDL_zerop(shader);
-    shader->handle = handle;
-    shader->rootSignature = rootSignature;
     shader->samplerCount = shaderCreateInfo->samplerCount;
     shader->storageBufferCount = shaderCreateInfo->storageBufferCount;
     shader->storageTextureCount = shaderCreateInfo->storageTextureCount;
@@ -1431,7 +1649,33 @@ SDL_bool D3D12_SetSwapchainParameters(
 
 SDL_GpuTextureFormat D3D12_GetSwapchainTextureFormat(
     SDL_GpuRenderer *driverData,
-    SDL_Window *window) { SDL_assert(SDL_FALSE); }
+    SDL_Window *window)
+{
+    D3D12WindowData *windowData = D3D12_INTERNAL_FetchWindowData(window);
+
+    if (windowData == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot get swapchain format, window has not been claimed!");
+        return 0;
+    }
+
+    switch (windowData->swapchainFormat) {
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+        return SDL_GPU_TEXTUREFORMAT_B8G8R8A8;
+
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+        return SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB;
+
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+        return SDL_GPU_TEXTUREFORMAT_R16G16B16A16_SFLOAT;
+
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+        return SDL_GPU_TEXTUREFORMAT_R10G10B10A2;
+
+    default:
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized swapchain format!");
+        return 0;
+    }
+}
 
 SDL_GpuCommandBuffer *D3D12_AcquireCommandBuffer(
     SDL_GpuRenderer *driverData)
