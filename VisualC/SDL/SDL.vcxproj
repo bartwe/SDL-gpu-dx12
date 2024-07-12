@@ -412,6 +412,8 @@
     <ClCompile Include="..\..\src\gpu\vulkan\SDL_gpu_vulkan.c" />
     <ClCompile Include="..\..\src\main\generic\SDL_sysmain_callbacks.c" />
     <ClCompile Include="..\..\src\main\SDL_main_callbacks.c" />
+    <ClCompile Include="..\..\src\main\SDL_runapp.c" />
+    <ClCompile Include="..\..\src\main\windows\SDL_sysmain_runapp.c" />
     <ClCompile Include="..\..\src\render\vulkan\SDL_render_vulkan.c" />
     <ClCompile Include="..\..\src\render\vulkan\SDL_shaders_vulkan.c" />
     <ClCompile Include="..\..\src\SDL_guid.c" />
@@ -470,6 +472,7 @@
     <ClInclude Include="..\..\src\video\SDL_pixels_c.h" />
     <ClInclude Include="..\..\src\video\SDL_rect_c.h" />
     <ClInclude Include="..\..\src\video\SDL_RLEaccel_c.h" />
+    <ClInclude Include="..\..\src\video\SDL_surface_c.h" />
     <ClInclude Include="..\..\src\video\SDL_sysvideo.h" />
     <ClInclude Include="..\..\src\video\SDL_vulkan_internal.h" />
     <ClInclude Include="..\..\src\video\SDL_yuv_c.h" />
@@ -514,7 +517,6 @@
     <ClCompile Include="..\..\src\audio\wasapi\SDL_wasapi.c" />
     <ClCompile Include="..\..\src\audio\wasapi\SDL_wasapi_win32.c" />
     <ClCompile Include="..\..\src\core\SDL_core_unsupported.c" />
-    <ClCompile Include="..\..\src\core\SDL_runapp.c" />
     <ClCompile Include="..\..\src\core\windows\SDL_hid.c" />
     <ClCompile Include="..\..\src\core\windows\SDL_immdevice.c" />
     <ClCompile Include="..\..\src\core\windows\SDL_windows.c" />

@@ -83,8 +83,7 @@
 #define SDL_ConvertPixels SDL_ConvertPixels_REAL
 #define SDL_ConvertPixelsAndColorspace SDL_ConvertPixelsAndColorspace_REAL
 #define SDL_ConvertSurface SDL_ConvertSurface_REAL
-#define SDL_ConvertSurfaceFormat SDL_ConvertSurfaceFormat_REAL
-#define SDL_ConvertSurfaceFormatAndColorspace SDL_ConvertSurfaceFormatAndColorspace_REAL
+#define SDL_ConvertSurfaceAndColorspace SDL_ConvertSurfaceAndColorspace_REAL
 #define SDL_CopyProperties SDL_CopyProperties_REAL
 #define SDL_CreateAudioStream SDL_CreateAudioStream_REAL
 #define SDL_CreateColorCursor SDL_CreateColorCursor_REAL
@@ -94,7 +93,6 @@
 #define SDL_CreateHapticEffect SDL_CreateHapticEffect_REAL
 #define SDL_CreateMutex SDL_CreateMutex_REAL
 #define SDL_CreatePalette SDL_CreatePalette_REAL
-#define SDL_CreatePixelFormat SDL_CreatePixelFormat_REAL
 #define SDL_CreatePopupWindow SDL_CreatePopupWindow_REAL
 #define SDL_CreateProperties SDL_CreateProperties_REAL
 #define SDL_CreateRWLock SDL_CreateRWLock_REAL
@@ -128,7 +126,6 @@
 #define SDL_DestroyHapticEffect SDL_DestroyHapticEffect_REAL
 #define SDL_DestroyMutex SDL_DestroyMutex_REAL
 #define SDL_DestroyPalette SDL_DestroyPalette_REAL
-#define SDL_DestroyPixelFormat SDL_DestroyPixelFormat_REAL
 #define SDL_DestroyProperties SDL_DestroyProperties_REAL
 #define SDL_DestroyRWLock SDL_DestroyRWLock_REAL
 #define SDL_DestroyRenderer SDL_DestroyRenderer_REAL
@@ -166,7 +163,7 @@
 #define SDL_GDKGetTaskQueue SDL_GDKGetTaskQueue_REAL
 #define SDL_GDKSuspendComplete SDL_GDKSuspendComplete_REAL
 #define SDL_GL_CreateContext SDL_GL_CreateContext_REAL
-#define SDL_GL_DeleteContext SDL_GL_DeleteContext_REAL
+#define SDL_GL_DestroyContext SDL_GL_DestroyContext_REAL
 #define SDL_GL_ExtensionSupported SDL_GL_ExtensionSupported_REAL
 #define SDL_GL_GetAttribute SDL_GL_GetAttribute_REAL
 #define SDL_GL_GetCurrentContext SDL_GL_GetCurrentContext_REAL
@@ -191,8 +188,9 @@
 #define SDL_GetAndroidSDKVersion SDL_GetAndroidSDKVersion_REAL
 #define SDL_GetAssertionHandler SDL_GetAssertionHandler_REAL
 #define SDL_GetAssertionReport SDL_GetAssertionReport_REAL
-#define SDL_GetAudioDeviceGain SDL_GetAudioDeviceGain_REAL
+#define SDL_GetAudioDeviceChannelMap SDL_GetAudioDeviceChannelMap_REAL
 #define SDL_GetAudioDeviceFormat SDL_GetAudioDeviceFormat_REAL
+#define SDL_GetAudioDeviceGain SDL_GetAudioDeviceGain_REAL
 #define SDL_GetAudioDeviceName SDL_GetAudioDeviceName_REAL
 #define SDL_GetAudioDriver SDL_GetAudioDriver_REAL
 #define SDL_GetAudioPlaybackDevices SDL_GetAudioPlaybackDevices_REAL
@@ -203,6 +201,8 @@
 #define SDL_GetAudioStreamFormat SDL_GetAudioStreamFormat_REAL
 #define SDL_GetAudioStreamFrequencyRatio SDL_GetAudioStreamFrequencyRatio_REAL
 #define SDL_GetAudioStreamGain SDL_GetAudioStreamGain_REAL
+#define SDL_GetAudioStreamInputChannelMap SDL_GetAudioStreamInputChannelMap_REAL
+#define SDL_GetAudioStreamOutputChannelMap SDL_GetAudioStreamOutputChannelMap_REAL
 #define SDL_GetAudioStreamProperties SDL_GetAudioStreamProperties_REAL
 #define SDL_GetAudioStreamQueued SDL_GetAudioStreamQueued_REAL
 #define SDL_GetBasePath SDL_GetBasePath_REAL
@@ -355,7 +355,7 @@
 #define SDL_GetKeyboards SDL_GetKeyboards_REAL
 #define SDL_GetLogOutputFunction SDL_GetLogOutputFunction_REAL
 #define SDL_GetLogPriority SDL_GetLogPriority_REAL
-#define SDL_GetMasksForPixelFormatEnum SDL_GetMasksForPixelFormatEnum_REAL
+#define SDL_GetMasksForPixelFormat SDL_GetMasksForPixelFormat_REAL
 #define SDL_GetMaxHapticEffects SDL_GetMaxHapticEffects_REAL
 #define SDL_GetMaxHapticEffectsPlaying SDL_GetMaxHapticEffectsPlaying_REAL
 #define SDL_GetMemoryFunctions SDL_GetMemoryFunctions_REAL
@@ -389,7 +389,8 @@
 #define SDL_GetPens SDL_GetPens_REAL
 #define SDL_GetPerformanceCounter SDL_GetPerformanceCounter_REAL
 #define SDL_GetPerformanceFrequency SDL_GetPerformanceFrequency_REAL
-#define SDL_GetPixelFormatEnumForMasks SDL_GetPixelFormatEnumForMasks_REAL
+#define SDL_GetPixelFormatDetails SDL_GetPixelFormatDetails_REAL
+#define SDL_GetPixelFormatForMasks SDL_GetPixelFormatForMasks_REAL
 #define SDL_GetPixelFormatName SDL_GetPixelFormatName_REAL
 #define SDL_GetPlatform SDL_GetPlatform_REAL
 #define SDL_GetPowerInfo SDL_GetPowerInfo_REAL
@@ -461,6 +462,7 @@
 #define SDL_GetSurfaceColorKey SDL_GetSurfaceColorKey_REAL
 #define SDL_GetSurfaceColorMod SDL_GetSurfaceColorMod_REAL
 #define SDL_GetSurfaceColorspace SDL_GetSurfaceColorspace_REAL
+#define SDL_GetSurfacePalette SDL_GetSurfacePalette_REAL
 #define SDL_GetSurfaceProperties SDL_GetSurfaceProperties_REAL
 #define SDL_GetSystemRAM SDL_GetSystemRAM_REAL
 #define SDL_GetSystemTheme SDL_GetSystemTheme_REAL
@@ -593,6 +595,8 @@
 #define SDL_LogWarn SDL_LogWarn_REAL
 #define SDL_MapRGB SDL_MapRGB_REAL
 #define SDL_MapRGBA SDL_MapRGBA_REAL
+#define SDL_MapSurfaceRGB SDL_MapSurfaceRGB_REAL
+#define SDL_MapSurfaceRGBA SDL_MapSurfaceRGBA_REAL
 #define SDL_MaximizeWindow SDL_MaximizeWindow_REAL
 #define SDL_MemoryBarrierAcquireFunction SDL_MemoryBarrierAcquireFunction_REAL
 #define SDL_MemoryBarrierReleaseFunction SDL_MemoryBarrierReleaseFunction_REAL
@@ -715,6 +719,8 @@
 #define SDL_SetAudioStreamFrequencyRatio SDL_SetAudioStreamFrequencyRatio_REAL
 #define SDL_SetAudioStreamGain SDL_SetAudioStreamGain_REAL
 #define SDL_SetAudioStreamGetCallback SDL_SetAudioStreamGetCallback_REAL
+#define SDL_SetAudioStreamInputChannelMap SDL_SetAudioStreamInputChannelMap_REAL
+#define SDL_SetAudioStreamOutputChannelMap SDL_SetAudioStreamOutputChannelMap_REAL
 #define SDL_SetAudioStreamPutCallback SDL_SetAudioStreamPutCallback_REAL
 #define SDL_SetBooleanProperty SDL_SetBooleanProperty_REAL
 #define SDL_SetClipboardData SDL_SetClipboardData_REAL
@@ -749,7 +755,6 @@
 #define SDL_SetModState SDL_SetModState_REAL
 #define SDL_SetNumberProperty SDL_SetNumberProperty_REAL
 #define SDL_SetPaletteColors SDL_SetPaletteColors_REAL
-#define SDL_SetPixelFormatPalette SDL_SetPixelFormatPalette_REAL
 #define SDL_SetPrimarySelectionText SDL_SetPrimarySelectionText_REAL
 #define SDL_SetProperty SDL_SetProperty_REAL
 #define SDL_SetPropertyWithCleanup SDL_SetPropertyWithCleanup_REAL
@@ -861,6 +866,7 @@
 #define SDL_Vulkan_CreateSurface SDL_Vulkan_CreateSurface_REAL
 #define SDL_Vulkan_DestroySurface SDL_Vulkan_DestroySurface_REAL
 #define SDL_Vulkan_GetInstanceExtensions SDL_Vulkan_GetInstanceExtensions_REAL
+#define SDL_Vulkan_GetPresentationSupport SDL_Vulkan_GetPresentationSupport_REAL
 #define SDL_Vulkan_GetVkGetInstanceProcAddr SDL_Vulkan_GetVkGetInstanceProcAddr_REAL
 #define SDL_Vulkan_LoadLibrary SDL_Vulkan_LoadLibrary_REAL
 #define SDL_Vulkan_UnloadLibrary SDL_Vulkan_UnloadLibrary_REAL

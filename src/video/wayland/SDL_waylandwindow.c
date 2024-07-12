@@ -407,8 +407,11 @@ static void ConfigureWindowGeometry(SDL_Window *window)
      * need to be recalculated if the output size has changed.
      */
     if (window_size_changed) {
-        /* libdecor does this internally on frame commits, so it's only needed for xdg surfaces. */
-        if (data->shell_surface_type != WAYLAND_SURFACE_LIBDECOR && data->shell_surface.xdg.surface) {
+        /* XXX: This is a hack and only set on the xdg-toplevel path when viewports
+         *      aren't supported to avoid a potential protocol violation if a buffer
+         *      with an old size is committed.
+         */
+        if (!data->viewport && data->shell_surface_type == WAYLAND_SURFACE_XDG_TOPLEVEL && data->shell_surface.xdg.surface) {
             xdg_surface_set_window_geometry(data->shell_surface.xdg.surface, 0, 0, data->current.logical_width, data->current.logical_height);
         }
 
@@ -634,9 +637,9 @@ static void surface_frame_done(void *data, struct wl_callback *cb, uint32_t time
 {
     SDL_WindowData *wind = (SDL_WindowData *)data;
 
-    /*
-     * wl_surface.damage_buffer is the preferred method of setting the damage region
-     * on compositor version 4 and above.
+    /* XXX: This is needed to work around an Nvidia egl-wayland bug due to buffer coordinates
+     *      being used with wl_surface_damage, which causes part of the output to not be
+     *      updated when using a viewport with an output region larger than the source region.
      */
     if (wl_compositor_get_version(wind->waylandData->compositor) >= WL_SURFACE_DAMAGE_BUFFER_SINCE_VERSION) {
         wl_surface_damage_buffer(wind->surface, 0, 0, SDL_MAX_SINT32, SDL_MAX_SINT32);
@@ -1830,9 +1833,6 @@ void Wayland_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
                                                      &decoration_listener,
                                                      window);
         }
-
-        /* Set the geometry */
-        xdg_surface_set_window_geometry(data->shell_surface.xdg.surface, 0, 0, data->current.logical_width, data->current.logical_height);
     } else {
         /* Nothing to see here, just commit. */
         wl_surface_commit(data->surface);

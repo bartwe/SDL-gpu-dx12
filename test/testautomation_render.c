@@ -18,7 +18,7 @@
 #define RENDER_COLOR_GREEN  0xFF00FF00
 
 #define ALLOWABLE_ERROR_OPAQUE  0
-#define ALLOWABLE_ERROR_BLENDED 64
+#define ALLOWABLE_ERROR_BLENDED 0
 
 #define CHECK_FUNC(FUNC, PARAMS)    \
 {                                   \
@@ -56,10 +56,6 @@ static void InitCreateRenderer(void *arg)
     SDLTest_AssertCheck(window != NULL, "Check SDL_CreateWindow result");
     if (window == NULL) {
         return;
-    }
-
-    if (SDL_strcmp(SDL_GetCurrentVideoDriver(), "dummy") == 0) {
-        renderer_name = SDL_SOFTWARE_RENDERER;
     }
 
     renderer = SDL_CreateRenderer(window, renderer_name);
@@ -1339,10 +1335,10 @@ compare(SDL_Surface *referenceSurface, int allowable_error)
         return;
     }
 
-    testSurface = SDL_ConvertSurfaceFormat(surface, RENDER_COMPARE_FORMAT);
+    testSurface = SDL_ConvertSurface(surface, RENDER_COMPARE_FORMAT);
     SDL_DestroySurface(surface);
     if (!testSurface) {
-        SDLTest_AssertCheck(testSurface != NULL, "Validate result from SDL_ConvertSurfaceFormat, got NULL, %s", SDL_GetError());
+        SDLTest_AssertCheck(testSurface != NULL, "Validate result from SDL_ConvertSurface, got NULL, %s", SDL_GetError());
         return;
     }
 

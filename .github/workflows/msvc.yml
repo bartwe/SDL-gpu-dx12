@@ -15,8 +15,8 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-        - { name: Windows (x64),          flags: -A x64,   project: VisualC/SDL.sln, projectflags: '/p:Platform=x64', artifact: 'SDL-VC-x64' }
-        - { name: Windows (x86),          flags: -A Win32, project: VisualC/SDL.sln, projectflags: '/p:Platform=Win32', artifact: 'SDL-VC-x86' }
+        - { name: Windows (x64),          flags: -A x64,   project: VisualC/SDL.sln, projectflags: '/p:Platform=x64',   libusb-arch: 'x64', artifact: 'SDL-VC-x64' }
+        - { name: Windows (x86),          flags: -A Win32, project: VisualC/SDL.sln, projectflags: '/p:Platform=Win32', libusb-arch: 'x86', artifact: 'SDL-VC-x86' }
         - { name: Windows (clang-cl x64), flags: -T ClangCL -A x64, artifact: 'SDL-clang-cl-x64' }
         - { name: Windows (clang-cl x86), flags: -T ClangCL -A Win32, artifact: 'SDL-clang-cl-x86' }
         - { name: Windows (ARM),          flags: -A ARM, artifact: 'SDL-VC-arm32', notests: true }
@@ -26,6 +26,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Set up libusb
+      uses: ./.github/actions/setup-msvc-libusb-action
+      if: ${{ matrix.platform.libusb-arch != '' }}
+      id: libusb
+      with:
+        arch: ${{ matrix.platform.libusb-arch }}
     - name: Create CMake project using SDL as a subproject
       shell: python
       run: |
@@ -35,13 +41,23 @@ jobs:
         builddir = f"{ srcdir }/build"
         os.makedirs(builddir)
         cmakelists_txt = textwrap.dedent(f"""\
-          # Always build .PDB symbol file
+          # MSVC runtime library flags are selected by an abstraction
+          set(CMAKE_POLICY_DEFAULT_CMP0091 "NEW" CACHE STRING "MSVC runtime library flags are selected by an abstraction")
+          # MSVC debug information format flags are selected by an abstraction
           set(CMAKE_POLICY_DEFAULT_CMP0141 "NEW" CACHE STRING "MSVC debug information format flags are selected by an abstraction")
-          set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "ProgramDatabase" CACHE STRING "MSVC debug information format")
-          set(CMAKE_EXE_LINKER_FLAGS "-DEBUG" CACHE STRING "Linker flags for executables")
-          set(CMAKE_SHARED_LINKER_FLAGS "-DEBUG" CACHE STRING "Linker flag for shared libraries")
           cmake_minimum_required(VERSION 3.0...3.25)
           project(sdl_user)
+          # Always build .PDB symbol file
+          set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "ProgramDatabase" CACHE STRING "MSVC debug information format" FORCE)
+          set(CMAKE_EXE_LINKER_FLAGS "-DEBUG" CACHE STRING "Linker flags for executables" FORCE)
+          set(CMAKE_SHARED_LINKER_FLAGS "-DEBUG" CACHE STRING "Linker flag for shared libraries" FORCE)
+          if(WINDOWS_STORE) # WINDOWS_STORE is available AFTER project()
+            # UWP only supports dynamic runtime
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "MSVC runtime libary" FORCE)
+          else()
+            # Use static runtime library
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC runtime libary" FORCE)
+          endif()
           enable_testing()
           add_subdirectory("{ srcdir }" SDL)
         """)
@@ -61,6 +77,7 @@ jobs:
         -DSDL_DISABLE_INSTALL_CPACK=OFF `
         -DSDL_DISABLE_INSTALL_DOCS=OFF `
         -DSDLTEST_PROCDUMP=ON `
+        -DLibUSB_ROOT="${{ steps.libusb.outputs.root }}" `
         ${{ matrix.platform.flags }} `
         -DCMAKE_INSTALL_PREFIX=prefix
     - name: Build (CMake)

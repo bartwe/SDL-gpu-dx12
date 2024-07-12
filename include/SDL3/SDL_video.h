@@ -88,7 +88,7 @@ typedef enum SDL_SystemTheme
 typedef struct SDL_DisplayMode
 {
     SDL_DisplayID displayID;    /**< the display this mode is associated with */
-    SDL_PixelFormatEnum format; /**< pixel format */
+    SDL_PixelFormat format;     /**< pixel format */
     int w;                      /**< width */
     int h;                      /**< height */
     float pixel_density;        /**< scale converting size to pixels (e.g. a 1920x1080 mode with 2.0 scale would have 3840x2160 pixels) */
@@ -1709,7 +1709,14 @@ extern SDL_DECLSPEC int SDLCALL SDL_ShowWindow(SDL_Window *window);
 extern SDL_DECLSPEC int SDLCALL SDL_HideWindow(SDL_Window *window);
 
 /**
- * Raise a window above other windows and set the input focus.
+ * Request that a window be raised above other windows and gain the input
+ * focus.
+ *
+ * The result of this request is subject to desktop window manager policy,
+ * particularly if raising the requested window would result in stealing focus
+ * from another application. If the window is successfully raised and gains
+ * input focus, an SDL_EVENT_WINDOW_FOCUS_GAINED event will be emitted, and
+ * the window will have the SDL_WINDOW_INPUT_FOCUS flag set.
  *
  * \param window the window to raise.
  * \returns 0 on success or a negative error code on failure; call
@@ -2333,9 +2340,6 @@ extern SDL_DECLSPEC int SDLCALL SDL_FlashWindow(SDL_Window *window, SDL_FlashOpe
  * Any popups or modal windows owned by the window will be recursively
  * destroyed as well.
  *
- * If `window` is NULL, this function will return immediately after setting
- * the SDL error message to "Invalid window". See SDL_GetError().
- *
  * \param window the window to destroy.
  *
  * \since This function is available since SDL 3.0.0.
@@ -2588,7 +2592,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_GL_GetAttribute(SDL_GLattr attr, int *value)
  *
  * \since This function is available since SDL 3.0.0.
  *
- * \sa SDL_GL_DeleteContext
+ * \sa SDL_GL_DestroyContext
  * \sa SDL_GL_MakeCurrent
  */
 extern SDL_DECLSPEC SDL_GLContext SDLCALL SDL_GL_CreateContext(SDL_Window *window);
@@ -2765,7 +2769,7 @@ extern SDL_DECLSPEC int SDLCALL SDL_GL_SwapWindow(SDL_Window *window);
  *
  * \sa SDL_GL_CreateContext
  */
-extern SDL_DECLSPEC int SDLCALL SDL_GL_DeleteContext(SDL_GLContext context);
+extern SDL_DECLSPEC int SDLCALL SDL_GL_DestroyContext(SDL_GLContext context);
 
 /* @} *//* OpenGL support functions */
 

@@ -186,6 +186,7 @@
     <ClInclude Include="..\src\video\SDL_pixels_c.h" />
     <ClInclude Include="..\src\video\SDL_rect_c.h" />
     <ClInclude Include="..\src\video\SDL_RLEaccel_c.h" />
+    <ClInclude Include="..\src\video\SDL_surface_c.h" />
     <ClInclude Include="..\src\video\SDL_sysvideo.h" />
     <ClInclude Include="..\src\video\SDL_sysvidocapture.h" />
     <ClInclude Include="..\src\video\SDL_yuv_c.h" />
@@ -269,7 +270,6 @@
     <ClCompile Include="..\src\camera\dummy\SDL_camera_dummy.c" />
     <ClCompile Include="..\src\camera\SDL_camera.c" />
     <ClCompile Include="..\src\core\SDL_core_unsupported.c" />
-    <ClCompile Include="..\src\core\SDL_runapp.c" />
     <ClCompile Include="..\src\core\windows\SDL_windows.c" />
     <ClCompile Include="..\src\core\windows\SDL_xinput.c" />
     <ClCompile Include="..\src\core\winrt\SDL_winrtapp_common.cpp">
@@ -363,8 +363,20 @@
     <ClCompile Include="..\src\loadso\windows\SDL_sysloadso.c" />
     <ClCompile Include="..\src\locale\SDL_locale.c" />
     <ClCompile Include="..\src\locale\winrt\SDL_syslocale.c" />
+    <ClCompile Include="..\src\main\SDL_runapp.c" />
     <ClCompile Include="..\src\main\generic\SDL_sysmain_callbacks.c" />
     <ClCompile Include="..\src\main\SDL_main_callbacks.c" />
+    <ClCompile Include="..\src\main\winrt\SDL_sysmain_runapp.cpp">
+      <CompileAsWinRT>true</CompileAsWinRT>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)$(TargetName)_cpp.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\src\misc\SDL_url.c" />
     <ClCompile Include="..\src\misc\winrt\SDL_sysurl.cpp">
       <CompileAsWinRT>true</CompileAsWinRT>

@@ -361,7 +361,7 @@ static UINT D3D12_Align(UINT location, UINT alignment)
     return (location + (alignment - 1)) & ~(alignment - 1);
 }
 
-static SDL_PixelFormatEnum D3D12_DXGIFormatToSDLPixelFormat(DXGI_FORMAT dxgiFormat)
+static SDL_PixelFormat D3D12_DXGIFormatToSDLPixelFormat(DXGI_FORMAT dxgiFormat)
 {
     switch (dxgiFormat) {
     case DXGI_FORMAT_B8G8R8A8_UNORM:
@@ -960,7 +960,7 @@ static HRESULT D3D12_CreateDeviceResources(SDL_Renderer *renderer)
                       D3D_GUID(SDL_IID_IDXGIAdapter4),
                       (void **)&data->dxgiAdapter);
     if (FAILED(result)) {
-        WIN_SetErrorFromHRESULT(SDL_COMPOSE_ERROR("D3D12CreateDevice"), result);
+        WIN_SetErrorFromHRESULT(SDL_COMPOSE_ERROR("IDXGIFactory6::EnumAdapterByGpuPreference"), result);
         goto done;
     }
 
@@ -1311,6 +1311,11 @@ static HRESULT D3D12_CreateSwapChain(SDL_Renderer *renderer, int w, int h)
                           DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;                  /* To support presenting with allow tearing on */
 
     HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(renderer->window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    if (!hwnd) {
+        SDL_SetError("Couldn't get window handle");
+        result = E_FAIL;
+        goto done;
+    }
 
     result = D3D_CALL(data->dxgiFactory, CreateSwapChainForHwnd,
                       (IUnknown *)data->commandQueue,
@@ -3226,6 +3231,11 @@ static int D3D12_SetVSync(SDL_Renderer *renderer, const int vsync)
 int D3D12_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_PropertiesID create_props)
 {
     D3D12_RenderData *data;
+
+    HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    if (!hwnd) {
+        return SDL_SetError("Couldn't get window handle");
+    }
 
     if (SDL_GetWindowFlags(window) & SDL_WINDOW_TRANSPARENT) {
 		/* D3D12 removed the swap effect needed to support transparent windows, use D3D11 instead */

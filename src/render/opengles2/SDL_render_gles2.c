@@ -1440,7 +1440,7 @@ static void GLES2_DestroyRenderer(SDL_Renderer *renderer)
             GL_CheckError("", renderer);
 #endif
 
-            SDL_GL_DeleteContext(data->context);
+            SDL_GL_DestroyContext(data->context);
         }
 
         SDL_free(data);
@@ -1966,7 +1966,7 @@ static void GLES2_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 static SDL_Surface *GLES2_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect *rect)
 {
     GLES2_RenderData *data = (GLES2_RenderData *)renderer->driverdata;
-    SDL_PixelFormatEnum format = renderer->target ? renderer->target->format : SDL_PIXELFORMAT_RGBA32;
+    SDL_PixelFormat format = renderer->target ? renderer->target->format : SDL_PIXELFORMAT_RGBA32;
     int w, h;
     SDL_Surface *surface;
 
@@ -2107,17 +2107,17 @@ static int GLES2_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_
         goto error;
     }
     if (SDL_GL_MakeCurrent(window, data->context) < 0) {
-        SDL_GL_DeleteContext(data->context);
+        SDL_GL_DestroyContext(data->context);
         goto error;
     }
 
     if (GLES2_LoadFunctions(data) < 0) {
-        SDL_GL_DeleteContext(data->context);
+        SDL_GL_DestroyContext(data->context);
         goto error;
     }
 
     if (GLES2_CacheShaders(data) < 0) {
-        SDL_GL_DeleteContext(data->context);
+        SDL_GL_DestroyContext(data->context);
         goto error;
     }
 

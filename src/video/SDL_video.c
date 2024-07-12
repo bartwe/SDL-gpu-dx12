@@ -284,14 +284,14 @@ static void SDLCALL SDL_CleanupWindowTextureData(void *userdata, void *value)
     SDL_free(data);
 }
 
-static int SDL_CreateWindowTexture(SDL_VideoDevice *_this, SDL_Window *window, SDL_PixelFormatEnum *format, void **pixels, int *pitch)
+static int SDL_CreateWindowTexture(SDL_VideoDevice *_this, SDL_Window *window, SDL_PixelFormat *format, void **pixels, int *pitch)
 {
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
     SDL_WindowTextureData *data = (SDL_WindowTextureData *)SDL_GetProperty(props, SDL_PROP_WINDOW_TEXTUREDATA_POINTER, NULL);
     const SDL_bool transparent = (window->flags & SDL_WINDOW_TRANSPARENT) ? SDL_TRUE : SDL_FALSE;
     int i;
     int w, h;
-    const SDL_PixelFormatEnum *texture_formats;
+    const SDL_PixelFormat *texture_formats;
 
     SDL_GetWindowSizeInPixels(window, &w, &h);
 
@@ -355,7 +355,7 @@ static int SDL_CreateWindowTexture(SDL_VideoDevice *_this, SDL_Window *window, S
         data->renderer = renderer;
     }
 
-    texture_formats = (const SDL_PixelFormatEnum *)SDL_GetProperty(SDL_GetRendererProperties(data->renderer), SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER, NULL);
+    texture_formats = (const SDL_PixelFormat *)SDL_GetProperty(SDL_GetRendererProperties(data->renderer), SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER, NULL);
     if (!texture_formats) {
         return -1;
     }
@@ -372,7 +372,7 @@ static int SDL_CreateWindowTexture(SDL_VideoDevice *_this, SDL_Window *window, S
     *format = texture_formats[0];
 
     for (i = 0; texture_formats[i] != SDL_PIXELFORMAT_UNKNOWN; ++i) {
-        SDL_PixelFormatEnum texture_format = texture_formats[i];
+        SDL_PixelFormat texture_format = texture_formats[i];
         if (!SDL_ISPIXELFORMAT_FOURCC(texture_format) &&
             !SDL_ISPIXELFORMAT_10BIT(texture_format) &&
             !SDL_ISPIXELFORMAT_FLOAT(texture_format) &&
@@ -759,7 +759,7 @@ SDL_DisplayID SDL_AddVideoDisplay(const SDL_VideoDisplay *display, SDL_bool send
     _this->displays[_this->num_displays++] = new_display;
 
     id = SDL_GetNextObjectID();
-    SDL_memcpy(new_display, display, sizeof(*new_display));
+    SDL_copyp(new_display, display);
     new_display->id = id;
     new_display->device = _this;
     if (display->name) {
@@ -789,6 +789,10 @@ SDL_DisplayID SDL_AddVideoDisplay(const SDL_VideoDisplay *display, SDL_bool send
     SDL_SetBooleanProperty(props, SDL_PROP_DISPLAY_HDR_ENABLED_BOOLEAN, new_display->HDR.HDR_headroom > 1.0f);
 
     SDL_UpdateDesktopBounds();
+
+    if (send_event) {
+        SDL_SendDisplayEvent(new_display, SDL_EVENT_DISPLAY_ADDED, 0);
+    }
 
     return id;
 }
@@ -2653,7 +2657,7 @@ int SDL_SetWindowIcon(SDL_Window *window, SDL_Surface *icon)
     SDL_DestroySurface(window->icon);
 
     /* Convert the icon into ARGB8888 */
-    window->icon = SDL_ConvertSurfaceFormat(icon, SDL_PIXELFORMAT_ARGB8888);
+    window->icon = SDL_ConvertSurface(icon, SDL_PIXELFORMAT_ARGB8888);
     if (!window->icon) {
         return -1;
     }
@@ -3283,20 +3287,12 @@ static SDL_bool ShouldAttemptTextureFramebuffer(void)
         attempt_texture_framebuffer = SDL_FALSE;
 #endif
     }
-
-    if (attempt_texture_framebuffer) {
-        /* Using a software renderer will try to display on a window surface, so avoid recursion here */
-        hint = SDL_GetHint(SDL_HINT_RENDER_DRIVER);
-        if (hint && SDL_strcasecmp(hint, SDL_SOFTWARE_RENDERER) == 0) {
-            attempt_texture_framebuffer = SDL_FALSE;
-        }
-    }
     return attempt_texture_framebuffer;
 }
 
 static SDL_Surface *SDL_CreateWindowFramebuffer(SDL_Window *window)
 {
-    SDL_PixelFormatEnum format = SDL_PIXELFORMAT_UNKNOWN;
+    SDL_PixelFormat format = SDL_PIXELFORMAT_UNKNOWN;
     void *pixels = NULL;
     int pitch = 0;
     SDL_bool created_framebuffer = SDL_FALSE;
@@ -3347,7 +3343,7 @@ static SDL_Surface *SDL_CreateWindowFramebuffer(SDL_Window *window)
         return window->surface;
     }
 
-    return SDL_CreateSurfaceFrom(pixels, w, h, pitch, format);
+    return SDL_CreateSurfaceFrom(w, h, format, pixels, pitch);
 }
 
 SDL_bool SDL_WindowHasSurface(SDL_Window *window)
@@ -3363,7 +3359,7 @@ SDL_Surface *SDL_GetWindowSurface(SDL_Window *window)
 
     if (!window->surface_valid) {
         if (window->surface) {
-            window->surface->flags &= ~SDL_DONTFREE;
+            window->surface->internal->flags &= ~SDL_INTERNAL_SURFACE_DONTFREE;
             SDL_DestroySurface(window->surface);
             window->surface = NULL;
         }
@@ -3371,7 +3367,7 @@ SDL_Surface *SDL_GetWindowSurface(SDL_Window *window)
         window->surface = SDL_CreateWindowFramebuffer(window);
         if (window->surface) {
             window->surface_valid = SDL_TRUE;
-            window->surface->flags |= SDL_DONTFREE;
+            window->surface->internal->flags |= SDL_INTERNAL_SURFACE_DONTFREE;
         }
     }
     return window->surface;
@@ -3429,7 +3425,7 @@ int SDL_DestroyWindowSurface(SDL_Window *window)
     CHECK_WINDOW_MAGIC(window, -1);
 
     if (window->surface) {
-        window->surface->flags &= ~SDL_DONTFREE;
+        window->surface->internal->flags &= ~SDL_INTERNAL_SURFACE_DONTFREE;
         SDL_DestroySurface(window->surface);
         window->surface = NULL;
         window->surface_valid = SDL_FALSE;
@@ -4924,7 +4920,7 @@ int SDL_GL_SwapWindow(SDL_Window *window)
     return _this->GL_SwapWindow(_this, window);
 }
 
-int SDL_GL_DeleteContext(SDL_GLContext context)
+int SDL_GL_DestroyContext(SDL_GLContext context)
 {
     if (!_this) {
         return SDL_UninitializedVideo();                                       \
@@ -4953,7 +4949,7 @@ static void CreateMaskFromColorKeyOrAlpha(SDL_Surface *icon, Uint8 *mask, int fl
     mask[(y * ((icon->w + 7) / 8)) + (x / 8)] &= ~(0x01 << (7 - (x % 8)))
 
     colorkey = icon->format->colorkey;
-    switch (icon->format->bytes_per_pixel) {
+    switch (SDL_BYTESPERPIXEL(icon->format)) {
     case 1:
         {
             Uint8 *pixels;
@@ -5374,7 +5370,7 @@ int SDL_SetWindowShape(SDL_Window *window, SDL_Surface *shape)
         return -1;
     }
 
-    surface = SDL_ConvertSurfaceFormat(shape, SDL_PIXELFORMAT_ARGB32);
+    surface = SDL_ConvertSurface(shape, SDL_PIXELFORMAT_ARGB32);
     if (!surface) {
         return -1;
     }
@@ -5528,6 +5524,36 @@ void SDL_Vulkan_DestroySurface(VkInstance instance,
     if (_this && instance && surface && _this->Vulkan_DestroySurface) {
         _this->Vulkan_DestroySurface(_this, instance, surface, allocator);
     }
+}
+
+SDL_bool SDL_Vulkan_GetPresentationSupport(VkInstance instance,
+                                           VkPhysicalDevice physicalDevice,
+                                           Uint32 queueFamilyIndex)
+{
+    if (!_this) {
+        SDL_UninitializedVideo();
+        return SDL_FALSE;
+    }
+
+    if (!instance) {
+        SDL_InvalidParamError("instance");
+        return SDL_FALSE;
+    }
+
+    if (!physicalDevice) {
+        SDL_InvalidParamError("physicalDevice");
+        return SDL_FALSE;
+    }
+
+    if (_this->Vulkan_GetPresentationSupport) {
+        return _this->Vulkan_GetPresentationSupport(_this, instance, physicalDevice, queueFamilyIndex);
+    }
+
+    /* If the backend does not have this function then it does not have a
+     * WSI function to query it; in other words it's not necessary to check
+     * as it is always supported.
+     */
+    return SDL_TRUE;
 }
 
 SDL_MetalView SDL_Metal_CreateView(SDL_Window *window)

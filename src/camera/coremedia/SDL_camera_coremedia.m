@@ -41,7 +41,7 @@
  * <key>com.apple.security.device.camera</key> <true/>
  */
 
-static void CoreMediaFormatToSDL(FourCharCode fmt, SDL_PixelFormatEnum *pixel_format, SDL_Colorspace *colorspace)
+static void CoreMediaFormatToSDL(FourCharCode fmt, SDL_PixelFormat *pixel_format, SDL_Colorspace *colorspace)
 {
     switch (fmt) {
         #define CASE(x, y, z) case x: *pixel_format = y; *colorspace = z; return
@@ -260,7 +260,7 @@ static int COREMEDIA_OpenDevice(SDL_CameraDevice *device, const SDL_CameraSpec *
     NSArray<AVCaptureDeviceFormat *> *formats = [avdevice formats];
     for (AVCaptureDeviceFormat *format in formats) {
         CMFormatDescriptionRef formatDescription = [format formatDescription];
-        SDL_PixelFormatEnum device_format = SDL_PIXELFORMAT_UNKNOWN;
+        SDL_PixelFormat device_format = SDL_PIXELFORMAT_UNKNOWN;
         SDL_Colorspace device_colorspace = SDL_COLORSPACE_UNKNOWN;
         CoreMediaFormatToSDL(CMFormatDescriptionGetMediaSubType(formatDescription), &device_format, &device_colorspace);
         if (device_format != spec->format || device_colorspace != spec->colorspace) {
@@ -268,12 +268,14 @@ static int COREMEDIA_OpenDevice(SDL_CameraDevice *device, const SDL_CameraSpec *
         }
 
         const CMVideoDimensions dim = CMVideoFormatDescriptionGetDimensions(formatDescription);
-        if ( ((int) dim.width != w) || (((int) dim.height) != h) ) {
+        if ((int)dim.width != w || (int)dim.height != h) {
             continue;
         }
 
+        const float FRAMERATE_EPSILON = 0.01f;
         for (AVFrameRateRange *framerate in format.videoSupportedFrameRateRanges) {
-            if (rate >= framerate.minFrameRate && rate <= framerate.maxFrameRate) {
+            if (rate > (framerate.minFrameRate - FRAMERATE_EPSILON) &&
+                rate < (framerate.maxFrameRate + FRAMERATE_EPSILON)) {
                 spec_format = format;
                 break;
             }
@@ -382,7 +384,7 @@ static void GatherCameraSpecs(AVCaptureDevice *device, CameraFormatAddData *add_
         }
 
 //NSLog(@"Available camera format: %@\n", fmt);
-        SDL_PixelFormatEnum device_format = SDL_PIXELFORMAT_UNKNOWN;
+        SDL_PixelFormat device_format = SDL_PIXELFORMAT_UNKNOWN;
         SDL_Colorspace device_colorspace = SDL_COLORSPACE_UNKNOWN;
         CoreMediaFormatToSDL(CMFormatDescriptionGetMediaSubType(fmt.formatDescription), &device_format, &device_colorspace);
         if (device_format == SDL_PIXELFORMAT_UNKNOWN) {
@@ -393,12 +395,15 @@ static void GatherCameraSpecs(AVCaptureDevice *device, CameraFormatAddData *add_
         const int w = (int) dims.width;
         const int h = (int) dims.height;
         for (AVFrameRateRange *framerate in fmt.videoSupportedFrameRateRanges) {
-            int numerator = 0, denominator = 1;
+            int min_numerator = 0, min_denominator = 1;
+            int max_numerator = 0, max_denominator = 1;
 
-            SDL_CalculateFraction(framerate.minFrameRate, &numerator, &denominator);
-            SDL_AddCameraFormat(add_data, device_format, device_colorspace, w, h, numerator, denominator);
-            SDL_CalculateFraction(framerate.maxFrameRate, &numerator, &denominator);
-            SDL_AddCameraFormat(add_data, device_format, device_colorspace, w, h, numerator, denominator);
+            SDL_CalculateFraction(framerate.minFrameRate, &min_numerator, &min_denominator);
+            SDL_AddCameraFormat(add_data, device_format, device_colorspace, w, h, min_numerator, min_denominator);
+            SDL_CalculateFraction(framerate.maxFrameRate, &max_numerator, &max_denominator);
+            if (max_numerator != min_numerator || max_denominator != min_denominator) {
+                SDL_AddCameraFormat(add_data, device_format, device_colorspace, w, h, max_numerator, max_denominator);
+            }
         }
     }
 }
