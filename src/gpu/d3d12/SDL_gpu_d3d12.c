@@ -1429,7 +1429,7 @@ static D3D12WindowData *D3D12_INTERNAL_FetchWindowData(
     SDL_Window *window)
 {
     SDL_PropertiesID properties = SDL_GetWindowProperties(window);
-    return (D3D12WindowData *)SDL_GetProperty(properties, WINDOW_PROPERTY_DATA, NULL);
+    return (D3D12WindowData *)SDL_GetPointerProperty(properties, WINDOW_PROPERTY_DATA, NULL);
 }
 
 static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
@@ -1535,7 +1535,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
 
     /* Get the DXGI handle */
 #ifdef _WIN32
-    dxgiHandle = (HWND)SDL_GetProperty(SDL_GetWindowProperties(windowData->window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    dxgiHandle = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(windowData->window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 #else
     dxgiHandle = (HWND)windowData->window;
 #endif
@@ -1690,7 +1690,7 @@ SDL_bool D3D12_ClaimWindow(
         windowData->window = window;
 
         if (D3D12_INTERNAL_CreateSwapchain(renderer, windowData, swapchainComposition, presentMode)) {
-            SDL_SetProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA, windowData);
+            SDL_SetPointerProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA, windowData);
             return SDL_TRUE;
         } else {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not create swapchain, failed to claim window!");
