@@ -200,8 +200,6 @@
 
 #define SDL_GPU_VULKAN SDL_VIDEO_VULKAN
 
-#define SDL_GPU_VULKAN SDL_VIDEO_VULKAN
-
 /* Enable system power support */
 #define SDL_POWER_ANDROID 1
 

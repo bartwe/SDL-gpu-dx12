@@ -85,7 +85,6 @@ void *SDL_CompileFromSPIRV(
 
     switch (SDL_GpuGetBackend(device)) {
     case SDL_GPU_BACKEND_D3D11:
-    case SDL_GPU_BACKEND_D3D12:
         backend = SPVC_BACKEND_HLSL;
         format = SDL_GPU_SHADERFORMAT_HLSL;
         break;
