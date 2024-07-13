@@ -377,7 +377,7 @@ static SDL_VideoDevice *Wayland_CreateDevice(void)
     SDL_VideoDevice *device;
     SDL_VideoData *data;
     struct SDL_WaylandInput *input;
-    struct wl_display *display = SDL_GetProperty(SDL_GetGlobalProperties(),
+    struct wl_display *display = SDL_GetPointerProperty(SDL_GetGlobalProperties(),
                                                  SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER, NULL);
     SDL_bool display_is_external = !!display;
 
@@ -441,7 +441,7 @@ static SDL_VideoDevice *Wayland_CreateDevice(void)
     }
 
     if (!display_is_external) {
-        SDL_SetProperty(SDL_GetGlobalProperties(),
+        SDL_SetPointerProperty(SDL_GetGlobalProperties(),
                         SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER, display);
     }
 
@@ -666,7 +666,8 @@ static void AddEmulatedModes(SDL_DisplayData *dispdata, int native_width, int na
     for (i = 0; i < SDL_arraysize(mode_list); ++i) {
         SDL_zero(mode);
         mode.format = dpy->desktop_mode.format;
-        mode.refresh_rate = dpy->desktop_mode.refresh_rate;
+        mode.refresh_rate_numerator = dpy->desktop_mode.refresh_rate_numerator;
+        mode.refresh_rate_denominator = dpy->desktop_mode.refresh_rate_denominator;
 
         if (rot_90) {
             mode.w = mode_list[i].h;
@@ -809,7 +810,8 @@ static void display_handle_done(void *data,
         native_mode.w = driverdata->pixel_width;
         native_mode.h = driverdata->pixel_height;
     }
-    native_mode.refresh_rate = ((100 * driverdata->refresh) / 1000) / 100.0f; /* mHz to Hz */
+    native_mode.refresh_rate_numerator = driverdata->refresh;
+    native_mode.refresh_rate_denominator = 1000;
 
     if (driverdata->has_logical_size) { /* If xdg-output is present... */
         if (native_mode.w != driverdata->screen_width || native_mode.h != driverdata->screen_height) {
@@ -851,7 +853,8 @@ static void display_handle_done(void *data,
         desktop_mode.pixel_density = 1.0f;
     }
 
-    desktop_mode.refresh_rate = ((100 * driverdata->refresh) / 1000) / 100.0f; /* mHz to Hz */
+    desktop_mode.refresh_rate_numerator = driverdata->refresh;
+    desktop_mode.refresh_rate_denominator = 1000;
 
     if (driverdata->display > 0) {
         dpy = SDL_GetVideoDisplay(driverdata->display);
@@ -905,7 +908,7 @@ static void display_handle_done(void *data,
             SDL_zero(driverdata->placeholder);
         }
     } else {
-        SDL_SendDisplayEvent(dpy, SDL_EVENT_DISPLAY_ORIENTATION, driverdata->orientation);
+        SDL_SendDisplayEvent(dpy, SDL_EVENT_DISPLAY_ORIENTATION, driverdata->orientation, 0);
     }
 }
 

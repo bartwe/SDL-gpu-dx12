@@ -285,7 +285,7 @@ int UIKit_AddDisplay(SDL_bool send_event){
     mode.h = (int)size.height;
     mode.pixel_density = 1;
     mode.format = SDL_PIXELFORMAT_ABGR8888;
-    mode.refresh_rate = 60;
+    mode.refresh_rate = 60.0f;
 
     display.natural_orientation = SDL_ORIENTATION_LANDSCAPE;
 
@@ -534,7 +534,7 @@ void SDL_OnApplicationDidChangeStatusBarOrientation(void)
         default:
             break;
         }
-        SDL_SendDisplayEvent(display, SDL_EVENT_DISPLAY_ORIENTATION, orientation);
+        SDL_SendDisplayEvent(display, SDL_EVENT_DISPLAY_ORIENTATION, orientation, 0);
     }
 }
 #endif /* !SDL_PLATFORM_TVOS */

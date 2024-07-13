@@ -117,14 +117,14 @@ static const GUID D3D_IID_DXGI_DEBUG_ALL = { 0xe48ae283, 0xda80, 0x490b, { 0x87,
 #define DXGI_DLL      "dxgi.dll"
 #define DXGIDEBUG_DLL "dxgidebug.dll"
 #elif defined(__APPLE__)
-#define D3D11_DLL       "libdxvk_d3d11.dylib"
-#define DXGI_DLL        "libdxvk_dxgi.dylib"
-#define DXGIDEBUG_DLL   "libdxvk_dxgidebug.dylib"
+#define D3D11_DLL       "libdxvk_d3d11.0.dylib"
+#define DXGI_DLL        "libdxvk_dxgi.0.dylib"
+#define DXGIDEBUG_DLL   "libdxvk_dxgidebug.0.dylib"
 #define D3DCOMPILER_DLL "libvkd3d-utils.1.dylib"
 #else
-#define D3D11_DLL       "libdxvk_d3d11.so"
-#define DXGI_DLL        "libdxvk_dxgi.so"
-#define DXGIDEBUG_DLL   "libdxvk_dxgidebug.so"
+#define D3D11_DLL       "libdxvk_d3d11.so.0"
+#define DXGI_DLL        "libdxvk_dxgi.so.0"
+#define DXGIDEBUG_DLL   "libdxvk_dxgidebug.so.0"
 #define D3DCOMPILER_DLL "libvkd3d-utils.so.1"
 #endif
 
@@ -4950,7 +4950,7 @@ static D3D11WindowData *D3D11_INTERNAL_FetchWindowData(
     SDL_Window *window)
 {
     SDL_PropertiesID properties = SDL_GetWindowProperties(window);
-    return (D3D11WindowData *)SDL_GetProperty(properties, WINDOW_PROPERTY_DATA, NULL);
+    return (D3D11WindowData *)SDL_GetPointerProperty(properties, WINDOW_PROPERTY_DATA, NULL);
 }
 
 static SDL_bool D3D11_INTERNAL_InitializeSwapchainTexture(
@@ -5082,7 +5082,7 @@ static SDL_bool D3D11_INTERNAL_CreateSwapchain(
 
     /* Get the DXGI handle */
 #ifdef _WIN32
-    dxgiHandle = (HWND)SDL_GetProperty(SDL_GetWindowProperties(windowData->window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    dxgiHandle = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(windowData->window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 #else
     dxgiHandle = (HWND)windowData->window;
 #endif
@@ -5302,7 +5302,7 @@ static SDL_bool D3D11_ClaimWindow(
         windowData->window = window;
 
         if (D3D11_INTERNAL_CreateSwapchain(renderer, windowData, swapchainComposition, presentMode)) {
-            SDL_SetProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA, windowData);
+            SDL_SetPointerProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA, windowData);
 
             SDL_LockMutex(renderer->windowLock);
 
