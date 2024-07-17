@@ -268,6 +268,21 @@ static DXGI_FORMAT SDLToD3D12_VertexFormat[] = {
     DXGI_FORMAT_R16G16B16A16_FLOAT  /* HALFVECTOR4 */
 };
 
+static int SDLToD3D12_SampleCount[] = {
+    1, /* SDL_GPU_SAMPLECOUNT_1 */
+    2, /* SDL_GPU_SAMPLECOUNT_2 */
+    4, /* SDL_GPU_SAMPLECOUNT_4 */
+    8, /* SDL_GPU_SAMPLECOUNT_8 */
+};
+
+static D3D12_PRIMITIVE_TOPOLOGY SDLToD3D12_PrimitiveType[] = {
+    D3D_PRIMITIVE_TOPOLOGY_POINTLIST,    // POINTLIST
+    D3D_PRIMITIVE_TOPOLOGY_LINELIST,     // LINELIST
+    D3D_PRIMITIVE_TOPOLOGY_LINESTRIP,    // LINESTRIP
+    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST, // TRIANGLELIST
+    D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP // TRIANGLESTRIP
+};
+
 /* Structures */
 typedef struct D3D12Renderer D3D12Renderer;
 typedef struct D3D12CommandBuffer D3D12CommandBuffer;
@@ -275,6 +290,7 @@ typedef struct D3D12WindowData D3D12WindowData;
 typedef struct D3D12Texture D3D12Texture;
 typedef struct D3D12Shader D3D12Shader;
 typedef struct D3D12GraphicsPipeline D3D12GraphicsPipeline;
+typedef struct D3D12UniformBuffer D3D12UniformBuffer;
 
 struct D3D12WindowData
 {
@@ -344,6 +360,7 @@ struct D3D12CommandBuffer
 
     Uint32 colorAttachmentCount;
     D3D12Texture *colorAttachmentTexture[MAX_COLOR_TARGET_BINDINGS];
+    D3D12GraphicsPipeline *currentGraphicsPipeline;
 };
 
 struct D3D12Shader
@@ -360,10 +377,17 @@ struct D3D12Shader
 
 struct D3D12GraphicsPipeline
 {
-    // todo cleanup
     ID3D12PipelineState *pipelineState;
-    // todo cleanup
     ID3D12RootSignature *rootSignature;
+    SDL_GpuPrimitiveType primitiveType;
+    float blendConstants[4];
+    UINT stencilRef;
+};
+
+struct D3D12UniformBuffer
+{
+    ID3D12Resource *resource;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
 };
 
 /* Logging */
@@ -888,7 +912,7 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
         return NULL;
 
     psoDesc.SampleMask = UINT_MAX;
-    psoDesc.SampleDesc.Count = pipelineCreateInfo->multisampleState.multisampleCount;
+    psoDesc.SampleDesc.Count = SDLToD3D12_SampleCount[pipelineCreateInfo->multisampleState.multisampleCount];
     psoDesc.SampleDesc.Quality = 0;
 
     psoDesc.DSVFormat = pipelineCreateInfo->attachmentInfo.depthStencilFormat;
@@ -922,7 +946,15 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
     SDL_zerop(pipeline);
     pipeline->pipelineState = pipelineState;
     pipeline->rootSignature = rootSignature;
-    return (SDL_GpuGraphicsPipeline*)pipeline;
+
+    pipeline->primitiveType = pipelineCreateInfo->primitiveType;
+    pipeline->blendConstants[0] = pipelineCreateInfo->blendConstants[0];
+    pipeline->blendConstants[1] = pipelineCreateInfo->blendConstants[1];
+    pipeline->blendConstants[2] = pipelineCreateInfo->blendConstants[2];
+    pipeline->blendConstants[3] = pipelineCreateInfo->blendConstants[3];
+    pipeline->stencilRef = pipelineCreateInfo->depthStencilState.reference;
+
+    return (SDL_GpuGraphicsPipeline *)pipeline;
 }
 
 SDL_GpuSampler *D3D12_CreateSampler(
@@ -1021,7 +1053,17 @@ void D3D12_ReleaseTransferBuffer(
 
 void D3D12_ReleaseShader(
     SDL_GpuRenderer *driverData,
-    SDL_GpuShader *shader) { SDL_assert(SDL_FALSE); }
+    SDL_GpuShader *shader)
+{
+    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+    D3D12Shader *d3d12shader = (D3D12Shader *)shader;
+
+    if (d3d12shader->bytecode) {
+        SDL_free(d3d12shader->bytecode);
+        d3d12shader->bytecode = NULL;
+    }
+    SDL_free(d3d12shader);
+}
 
 void D3D12_ReleaseComputePipeline(
     SDL_GpuRenderer *driverData,
@@ -1029,7 +1071,19 @@ void D3D12_ReleaseComputePipeline(
 
 void D3D12_ReleaseGraphicsPipeline(
     SDL_GpuRenderer *driverData,
-    SDL_GpuGraphicsPipeline *graphicsPipeline) { SDL_assert(SDL_FALSE); }
+    SDL_GpuGraphicsPipeline *graphicsPipeline)
+{
+    D3D12GraphicsPipeline *pipeline = (D3D12GraphicsPipeline *)graphicsPipeline;
+    if (pipeline->pipelineState) {
+        ID3D12PipelineState_Release(pipeline->pipelineState);
+        pipeline->pipelineState = NULL;
+    }
+    if (pipeline->rootSignature) {
+        ID3D12RootSignature_Release(pipeline->rootSignature);
+        pipeline->rootSignature = NULL;
+    }
+    SDL_free(pipeline);
+}
 
 /* Render Pass */
 
@@ -1078,7 +1132,7 @@ void D3D12_BeginRenderPass(
     for (Uint32 i = 0; i < colorAttachmentCount; ++i) {
         D3D12Texture *texture = (D3D12Texture *)colorAttachmentInfos[i].textureSlice.texture;
         auto h = texture->desc.Height >> colorAttachmentInfos[i].textureSlice.mipLevel;
-        auto w = texture->desc.Width >> colorAttachmentInfos[i].textureSlice.mipLevel;
+        auto w = (int)texture->desc.Width >> colorAttachmentInfos[i].textureSlice.mipLevel;
 
         /* The framebuffer cannot be larger than the smallest attachment. */
 
@@ -1100,7 +1154,7 @@ void D3D12_BeginRenderPass(
         D3D12Texture *texture = (D3D12Texture *)depthStencilAttachmentInfo->textureSlice.texture;
 
         auto h = texture->desc.Height >> depthStencilAttachmentInfo->textureSlice.mipLevel;
-        auto w = texture->desc.Width >> depthStencilAttachmentInfo->textureSlice.mipLevel;
+        auto w = (int)texture->desc.Width >> depthStencilAttachmentInfo->textureSlice.mipLevel;
 
         /* The framebuffer cannot be larger than the smallest attachment. */
 
@@ -1179,7 +1233,62 @@ void D3D12_BeginRenderPass(
 
 void D3D12_BindGraphicsPipeline(
     SDL_GpuCommandBuffer *commandBuffer,
-    SDL_GpuGraphicsPipeline *graphicsPipeline) { SDL_assert(SDL_FALSE); }
+    SDL_GpuGraphicsPipeline *graphicsPipeline)
+{
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12GraphicsPipeline *pipeline = (D3D12GraphicsPipeline *)graphicsPipeline;
+
+    d3d12CommandBuffer->currentGraphicsPipeline = pipeline;
+
+    // Set the pipeline state
+    ID3D12GraphicsCommandList2_SetPipelineState(d3d12CommandBuffer->graphicsCommandList, pipeline->pipelineState);
+
+    ID3D12GraphicsCommandList2_SetGraphicsRootSignature(d3d12CommandBuffer->graphicsCommandList, pipeline->rootSignature);
+
+    ID3D12GraphicsCommandList2_IASetPrimitiveTopology(d3d12CommandBuffer->graphicsCommandList, SDLToD3D12_PrimitiveType[pipeline->primitiveType]);
+
+    float blendFactor[4] = {
+        pipeline->blendConstants[0],
+        pipeline->blendConstants[1],
+        pipeline->blendConstants[2],
+        pipeline->blendConstants[3]
+    };
+    ID3D12GraphicsCommandList2_OMSetBlendFactor(d3d12CommandBuffer->graphicsCommandList, pipeline->blendConstants);
+
+    ID3D12GraphicsCommandList2_OMSetStencilRef(d3d12CommandBuffer->graphicsCommandList, pipeline->stencilRef);
+
+    /*
+    ID3D12DescriptorHeap *descriptorHeaps[] = { d3d12CommandBuffer->descriptorHeap };
+    ID3D12GraphicsCommandList2_SetDescriptorHeaps(d3d12CommandBuffer->graphicsCommandList, _countof(descriptorHeaps), descriptorHeaps);
+
+    // Bind the uniform buffers (descriptor tables)
+    for (Uint32 i = 0; i < pipeline->vertexUniformBufferCount; i++) {
+        if (d3d12CommandBuffer->vertexUniformBuffers[i] == nullptr) {
+            d3d12CommandBuffer->vertexUniformBuffers[i] = D3D12_INTERNAL_AcquireUniformBufferFromPool(
+                d3d12CommandBuffer);
+        }
+        ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
+            d3d12CommandBuffer->graphicsCommandList,
+            i,
+            d3d12CommandBuffer->vertexUniformBuffers[i]->GetGPUDescriptorHandle());
+    }
+
+    for (Uint32 i = 0; i < pipeline->fragmentUniformBufferCount; i++) {
+        if (d3d12CommandBuffer->fragmentUniformBuffers[i] == nullptr) {
+            d3d12CommandBuffer->fragmentUniformBuffers[i] = D3D12_INTERNAL_AcquireUniformBufferFromPool(
+                d3d12CommandBuffer);
+        }
+        ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
+            d3d12CommandBuffer->graphicsCommandList,
+            pipeline->vertexUniformBufferCount + i,
+            d3d12CommandBuffer->fragmentUniformBuffers[i]->GetGPUDescriptorHandle());
+    }
+
+    // Mark that uniform bindings are needed
+    d3d12CommandBuffer->needVertexUniformBufferBind = SDL_TRUE;
+    d3d12CommandBuffer->needFragmentUniformBufferBind = SDL_TRUE;
+    */
+}
 
 void D3D12_BindVertexBuffers(
     SDL_GpuCommandBuffer *commandBuffer,
@@ -1250,7 +1359,15 @@ void D3D12_DrawIndexedPrimitives(
 void D3D12_DrawPrimitives(
     SDL_GpuCommandBuffer *commandBuffer,
     Uint32 vertexStart,
-    Uint32 primitiveCount) { SDL_assert(SDL_FALSE); }
+    Uint32 primitiveCount)
+{
+    /*
+    D3D12CommandBuffer *d3d11CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12_INTERNAL_BindGraphicsResources(d3d11CommandBuffer);
+    */
+
+    // temp noop
+}
 
 void D3D12_DrawPrimitivesIndirect(
     SDL_GpuCommandBuffer *commandBuffer,
@@ -1830,7 +1947,7 @@ void D3D12_Submit(
         window = nextWindow;
     }
 
-    auto fenceToWaitFor = d3d12commandBuffer->fenceValue;
+    const UINT64 fenceToWaitFor = d3d12commandBuffer->fenceValue;
     res = ID3D12CommandQueue_Signal(d3d12commandBuffer->commandQueue, d3d12commandBuffer->fence, d3d12commandBuffer->fenceValue);
     ERROR_CHECK("Could not signale commandQueue");
     d3d12commandBuffer->fenceValue++;
