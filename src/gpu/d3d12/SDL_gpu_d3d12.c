@@ -34,7 +34,6 @@
 #include <dxgidebug.h>
 
 #include "../SDL_gpu_driver.h"
-#include "SDL_gpu_d3d12.h"
 
 /* Macros */
 
@@ -78,6 +77,8 @@
 #define D3D_FEATURE_LEVEL_CHOICE_STR        "11_1"
 #define SWAPCHAIN_BUFFER_COUNT              2
 #define MAX_ROOT_SIGNATURE_PARAMETERS       64
+#define MAX_VERTEX_UNIFORM_BUFFERS          14
+#define MAX_FRAGMENT_UNIFORM_BUFFERS        14
 
 #ifdef _WIN32
 #define HRESULT_FMT "(0x%08lX)"
@@ -115,6 +116,7 @@ static const IID SDL_IID_ID3D12GraphicsCommandList2 = { 0x38C3E585, 0xFF17, 0x41
 static const IID SDL_IID_ID3D12Fence = { 0x0a753dcf, 0xc4d8, 0x4b91, { 0xad, 0xf6, 0xbe, 0x5a, 0x60, 0xd9, 0x5a, 0x76 } };
 static const IID SDL_IID_ID3D12RootSignature = { 0xc54a6b66, 0x72df, 0x4ee8, { 0x8b, 0xe5, 0xa9, 0x46, 0xa1, 0x42, 0x92, 0x14 } };
 static const IID SDL_IID_ID3D12PipelineState = { 0x765a30f3, 0xf624, 0x4c6f, { 0xa8, 0x28, 0xac, 0xe9, 0x48, 0x62, 0x24, 0x45 } };
+static const IID SDL_IID_ID3D12DescriptorHeap = { 0x8efb471d, 0x616c, 0x4f49, { 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51 } };
 
 static const char *D3D12ShaderProfiles[3] = { "vs_5_1", "ps_5_1", "cs_5_1" };
 
@@ -361,6 +363,14 @@ struct D3D12CommandBuffer
     Uint32 colorAttachmentCount;
     D3D12Texture *colorAttachmentTexture[MAX_COLOR_TARGET_BINDINGS];
     D3D12GraphicsPipeline *currentGraphicsPipeline;
+
+    ID3D12DescriptorHeap *descriptorHeap;
+
+    D3D12_GPU_DESCRIPTOR_HANDLE vertexUniformBuffers[MAX_VERTEX_UNIFORM_BUFFERS];
+    D3D12_GPU_DESCRIPTOR_HANDLE fragmentUniformBuffers[MAX_FRAGMENT_UNIFORM_BUFFERS];
+
+    SDL_bool needVertexUniformBufferBind;
+    SDL_bool needFragmentUniformBufferBind;
 };
 
 struct D3D12Shader
@@ -381,7 +391,16 @@ struct D3D12GraphicsPipeline
     ID3D12RootSignature *rootSignature;
     SDL_GpuPrimitiveType primitiveType;
     float blendConstants[4];
-    UINT stencilRef;
+    Uint32 stencilRef;
+    Uint32 vertexSamplerCount;
+    Uint32 vertexUniformBufferCount;
+    Uint32 vertexStorageBufferCount;
+    Uint32 vertexStorageTextureCount;
+
+    Uint32 fragmentSamplerCount;
+    Uint32 fragmentUniformBufferCount;
+    Uint32 fragmentStorageBufferCount;
+    Uint32 fragmentStorageTextureCount;
 };
 
 struct D3D12UniformBuffer
@@ -446,6 +465,10 @@ D3D12_INTERNAL_LogError(
 
 static void D3D12_INTERNAL_DestroyCommandBuffer(D3D12CommandBuffer *commandBuffer)
 {
+    if (commandBuffer->descriptorHeap) {
+        ID3D12DescriptorHeap_Release(commandBuffer->descriptorHeap);
+        commandBuffer->descriptorHeap = NULL;
+    }
     if (commandBuffer->fenceEvent) {
         CloseHandle(commandBuffer->fenceEvent);
         commandBuffer->fenceEvent = NULL;
@@ -954,6 +977,17 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
     pipeline->blendConstants[3] = pipelineCreateInfo->blendConstants[3];
     pipeline->stencilRef = pipelineCreateInfo->depthStencilState.reference;
 
+    pipeline->vertexSamplerCount = vertShader->samplerCount;
+    pipeline->vertexStorageTextureCount = vertShader->storageTextureCount;
+    pipeline->vertexStorageBufferCount = vertShader->storageBufferCount;
+    pipeline->vertexUniformBufferCount = vertShader->uniformBufferCount;
+
+    pipeline->fragmentSamplerCount = fragShader->samplerCount;
+    pipeline->fragmentStorageTextureCount = fragShader->storageTextureCount;
+    pipeline->fragmentStorageBufferCount = fragShader->storageBufferCount;
+    pipeline->fragmentUniformBufferCount = fragShader->uniformBufferCount;
+
+
     return (SDL_GpuGraphicsPipeline *)pipeline;
 }
 
@@ -1257,37 +1291,35 @@ void D3D12_BindGraphicsPipeline(
 
     ID3D12GraphicsCommandList2_OMSetStencilRef(d3d12CommandBuffer->graphicsCommandList, pipeline->stencilRef);
 
-    /*
     ID3D12DescriptorHeap *descriptorHeaps[] = { d3d12CommandBuffer->descriptorHeap };
     ID3D12GraphicsCommandList2_SetDescriptorHeaps(d3d12CommandBuffer->graphicsCommandList, _countof(descriptorHeaps), descriptorHeaps);
 
     // Bind the uniform buffers (descriptor tables)
     for (Uint32 i = 0; i < pipeline->vertexUniformBufferCount; i++) {
-        if (d3d12CommandBuffer->vertexUniformBuffers[i] == nullptr) {
+        if (d3d12CommandBuffer->vertexUniformBuffers[i].ptr == NULL) {
             d3d12CommandBuffer->vertexUniformBuffers[i] = D3D12_INTERNAL_AcquireUniformBufferFromPool(
                 d3d12CommandBuffer);
         }
         ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
             d3d12CommandBuffer->graphicsCommandList,
             i,
-            d3d12CommandBuffer->vertexUniformBuffers[i]->GetGPUDescriptorHandle());
+            d3d12CommandBuffer->vertexUniformBuffers[i]);
     }
 
     for (Uint32 i = 0; i < pipeline->fragmentUniformBufferCount; i++) {
-        if (d3d12CommandBuffer->fragmentUniformBuffers[i] == nullptr) {
+        if (d3d12CommandBuffer->fragmentUniformBuffers[i].ptr == NULL) {
             d3d12CommandBuffer->fragmentUniformBuffers[i] = D3D12_INTERNAL_AcquireUniformBufferFromPool(
                 d3d12CommandBuffer);
         }
         ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
             d3d12CommandBuffer->graphicsCommandList,
             pipeline->vertexUniformBufferCount + i,
-            d3d12CommandBuffer->fragmentUniformBuffers[i]->GetGPUDescriptorHandle());
+            d3d12CommandBuffer->fragmentUniformBuffers[i]);
     }
 
     // Mark that uniform bindings are needed
     d3d12CommandBuffer->needVertexUniformBufferBind = SDL_TRUE;
     d3d12CommandBuffer->needFragmentUniformBufferBind = SDL_TRUE;
-    */
 }
 
 void D3D12_BindVertexBuffers(
@@ -1712,7 +1744,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
         &D3D_IID_IDXGISwapChain3,
         (void **)&swapchain3);
     IDXGISwapChain1_Release(swapchain);
-    ERROR_CHECK_RETURN("Could not create swapchain3", 0);
+    ERROR_CHECK_RETURN("Could not create IDXGISwapChain3", 0);
 
     IDXGISwapChain3_CheckColorSpaceSupport(
         swapchain3,
@@ -2408,6 +2440,20 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
     }
     renderer->commandBuffer->fenceValue = 1;
     renderer->commandBuffer->fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = { 0 };
+    heapDesc.NumDescriptors = 1;
+    heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    res = ID3D12Device_CreateDescriptorHeap(
+        renderer->device,
+        &heapDesc,
+        &SDL_IID_ID3D12DescriptorHeap,
+        (void **)&renderer->commandBuffer->descriptorHeap);
+    if (FAILED(res)) {
+        D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+        ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap", NULL);
+    }
 
     /* Create the SDL_Gpu Device */
     result = (SDL_GpuDevice *)SDL_malloc(sizeof(SDL_GpuDevice));
