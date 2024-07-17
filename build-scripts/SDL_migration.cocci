@@ -3134,17 +3134,17 @@ typedef SDL_Colour, SDL_Color;
 @@
 @@
 - SDL_WinRTGetFSPathUTF8
-+ SDL_WinRTGetFSPath
++ SDL_GetWinRTFSPath
   (...)
 @@
 @@
 - SDL_iPhoneSetAnimationCallback
-+ SDL_iOSSetAnimationCallback
++ SDL_SetiOSAnimationCallback
   (...)
 @@
 @@
 - SDL_iPhoneSetEventPump
-+ SDL_iOSSetEventPump
++ SDL_SetiOSEventPump
   (...)
 @@
 @@
@@ -3484,11 +3484,6 @@ typedef SDL_Colour, SDL_Color;
 - SDLK_z
 + SDLK_Z
 @@
-typedef SDL_PixelFormat, SDL_PackedPixelDetails;
-@@
-- SDL_PixelFormat
-+ SDL_PixelFormatDetails
-@@
 @@
 - SDL_ConvertSurfaceFormat
 + SDL_ConvertSurface
@@ -3505,4 +3500,59 @@ typedef SDL_PixelFormat, SDL_PackedPixelDetails;
 @@
 - SDL_GL_DeleteContext
 + SDL_GL_DestroyContext
+  (...)
+@@
+@@
+- SDL_AndroidGetActivity
++ SDL_GetAndroidActivity
+  (...)
+@@
+@@
+- SDL_AndroidGetExternalStoragePath
++ SDL_GetAndroidExternalStoragePath
+  (...)
+@@
+@@
+- SDL_AndroidGetExternalStorageState
++ SDL_GetAndroidExternalStorageState
+  (...)
+@@
+@@
+- SDL_AndroidGetInternalStoragePath
++ SDL_GetAndroidInternalStoragePath
+  (...)
+@@
+@@
+- SDL_AndroidGetJNIEnv
++ SDL_GetAndroidJNIEnv
+  (...)
+@@
+@@
+- SDL_Direct3D9GetAdapterIndex
++ SDL_GetDirect3D9AdapterIndex
+  (...)
+@@
+@@
+- SDL_GDKGetDefaultUser
++ SDL_GetGDKDefaultUser
+  (...)
+@@
+@@
+- SDL_GDKGetTaskQueue
++ SDL_GetGDKTaskQueue
+  (...)
+@@
+@@
+- SDL_WinRTGetDeviceFamily
++ SDL_GetWinRTDeviceFamily
+  (...)
+@@
+@@
+- SDL_LinuxSetThreadPriority
++ SDL_SetLinuxThreadPriority
+  (...)
+@@
+@@
+- SDL_LinuxSetThreadPriorityAndPolicy
++ SDL_SetLinuxThreadPriorityAndPolicy
   (...)

@@ -461,7 +461,7 @@ SDL_gamecontroller.h has been renamed SDL_gamepad.h, and all APIs have been rena
 
 The SDL_EVENT_GAMEPAD_ADDED event now provides the joystick instance ID in the which member of the cdevice event structure.
 
-The functions SDL_GetGamepads(), SDL_GetGamepadInstanceName(), SDL_GetGamepadInstancePath(), SDL_GetGamepadInstancePlayerIndex(), SDL_GetGamepadInstanceGUID(), SDL_GetGamepadInstanceVendor(), SDL_GetGamepadInstanceProduct(), SDL_GetGamepadInstanceProductVersion(), and SDL_GetGamepadInstanceType() have been added to directly query the list of available gamepads.
+The functions SDL_GetGamepads(), SDL_GetGamepadNameForID(), SDL_GetGamepadPathForID(), SDL_GetGamepadPlayerIndexForID(), SDL_GetGamepadGUIDForID(), SDL_GetGamepadVendorForID(), SDL_GetGamepadProductForID(), SDL_GetGamepadProductVersionForID(), and SDL_GetGamepadTypeForID() have been added to directly query the list of available gamepads.
 
 The gamepad face buttons have been renamed from A/B/X/Y to North/South/East/West to indicate that they are positional rather than hardware-specific. You can use SDL_GetGamepadButtonLabel() to get the labels for the face buttons, e.g. A/B/X/Y or Cross/Circle/Square/Triangle. The hint SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS is ignored, and mappings that use this hint are translated correctly into positional buttons. Applications should provide a way for users to swap between South/East as their accept/cancel buttons, as this varies based on region and muscle memory. You can use an approach similar to the following to handle this:
 
@@ -574,7 +574,7 @@ The following functions have been renamed:
 * SDL_GameControllerAddMappingsFromFile() => SDL_AddGamepadMappingsFromFile()
 * SDL_GameControllerAddMappingsFromRW() => SDL_AddGamepadMappingsFromIO()
 * SDL_GameControllerClose() => SDL_CloseGamepad()
-* SDL_GameControllerFromInstanceID() => SDL_GetGamepadFromInstanceID()
+* SDL_GameControllerFromInstanceID() => SDL_GetGamepadFromID()
 * SDL_GameControllerFromPlayerIndex() => SDL_GetGamepadFromPlayerIndex()
 * SDL_GameControllerGetAppleSFSymbolsNameForAxis() => SDL_GetGamepadAppleSFSymbolsNameForAxis()
 * SDL_GameControllerGetAppleSFSymbolsNameForButton() => SDL_GetGamepadAppleSFSymbolsNameForButton()
@@ -624,12 +624,12 @@ The following functions have been removed:
 * SDL_GameControllerHasLED() - replaced with SDL_PROP_GAMEPAD_CAP_RGB_LED_BOOLEAN
 * SDL_GameControllerHasRumble() - replaced with SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN
 * SDL_GameControllerHasRumbleTriggers() - replaced with SDL_PROP_GAMEPAD_CAP_TRIGGER_RUMBLE_BOOLEAN
-* SDL_GameControllerMappingForDeviceIndex() - replaced with SDL_GetGamepadInstanceMapping()
+* SDL_GameControllerMappingForDeviceIndex() - replaced with SDL_GetGamepadMappingForID()
 * SDL_GameControllerMappingForIndex() - replaced with SDL_GetGamepadMappings()
-* SDL_GameControllerNameForIndex() - replaced with SDL_GetGamepadInstanceName()
+* SDL_GameControllerNameForIndex() - replaced with SDL_GetGamepadNameForID()
 * SDL_GameControllerNumMappings() - replaced with SDL_GetGamepadMappings()
-* SDL_GameControllerPathForIndex() - replaced with SDL_GetGamepadInstancePath()
-* SDL_GameControllerTypeForIndex() - replaced with SDL_GetGamepadInstanceType()
+* SDL_GameControllerPathForIndex() - replaced with SDL_GetGamepadPathForID()
+* SDL_GameControllerTypeForIndex() - replaced with SDL_GetGamepadTypeForID()
 
 The following symbols have been renamed:
 * SDL_CONTROLLER_AXIS_INVALID => SDL_GAMEPAD_AXIS_INVALID
@@ -700,7 +700,7 @@ Rather than iterating over haptic devices using device index, there is a new fun
         if (haptics) {
             for (i = 0; i < num_haptics; ++i) {
                 SDL_HapticID instance_id = haptics[i];
-                const char *name = SDL_GetHapticInstanceName(instance_id);
+                const char *name = SDL_GetHapticNameForID(instance_id);
 
                 SDL_Log("Haptic %" SDL_PRIu32 ": %s\n",
                         instance_id, name ? name : "Unknown");
@@ -741,9 +741,9 @@ The following functions have been renamed:
 * SDL_MouseIsHaptic() => SDL_IsMouseHaptic()
 
 The following functions have been removed:
-* SDL_HapticIndex() - replaced with SDL_GetHapticInstanceID()
-* SDL_HapticName() - replaced with SDL_GetHapticInstanceName()
-* SDL_HapticOpened() - replaced with SDL_GetHapticFromInstanceID()
+* SDL_HapticIndex() - replaced with SDL_GetHapticID()
+* SDL_HapticName() - replaced with SDL_GetHapticNameForID()
+* SDL_HapticOpened() - replaced with SDL_GetHapticFromID()
 * SDL_NumHaptics() - replaced with SDL_GetHaptics()
 
 ## SDL_hints.h
@@ -830,11 +830,11 @@ Rather than iterating over joysticks using device index, there is a new function
         if (joysticks) {
             for (i = 0; i < num_joysticks; ++i) {
                 SDL_JoystickID instance_id = joysticks[i];
-                const char *name = SDL_GetJoystickInstanceName(instance_id);
-                const char *path = SDL_GetJoystickInstancePath(instance_id);
+                const char *name = SDL_GetJoystickNameForID(instance_id);
+                const char *path = SDL_GetJoystickPathForID(instance_id);
 
                 SDL_Log("Joystick %" SDL_PRIu32 ": %s%s%s VID 0x%.4x, PID 0x%.4x\n",
-                        instance_id, name ? name : "Unknown", path ? ", " : "", path ? path : "", SDL_GetJoystickInstanceVendor(instance_id), SDL_GetJoystickInstanceProduct(instance_id));
+                        instance_id, name ? name : "Unknown", path ? ", " : "", path ? path : "", SDL_GetJoystickVendorForID(instance_id), SDL_GetJoystickProductForID(instance_id));
             }
             SDL_free(joysticks);
         }
@@ -845,7 +845,7 @@ Rather than iterating over joysticks using device index, there is a new function
 
 The SDL_EVENT_JOYSTICK_ADDED event now provides the joystick instance ID in the `which` member of the jdevice event structure.
 
-The functions SDL_GetJoysticks(), SDL_GetJoystickInstanceName(), SDL_GetJoystickInstancePath(), SDL_GetJoystickInstancePlayerIndex(), SDL_GetJoystickInstanceGUID(), SDL_GetJoystickInstanceVendor(), SDL_GetJoystickInstanceProduct(), SDL_GetJoystickInstanceProductVersion(), and SDL_GetJoystickInstanceType() have been added to directly query the list of available joysticks.
+The functions SDL_GetJoysticks(), SDL_GetJoystickNameForID(), SDL_GetJoystickPathForID(), SDL_GetJoystickPlayerIndexForID(), SDL_GetJoystickGUIDForID(), SDL_GetJoystickVendorForID(), SDL_GetJoystickProductForID(), SDL_GetJoystickProductVersionForID(), and SDL_GetJoystickTypeForID() have been added to directly query the list of available joysticks.
 
 SDL_AttachVirtualJoystick() now returns the joystick instance ID instead of a device index, and returns 0 if there was an error.
 
@@ -855,7 +855,7 @@ The following functions have been renamed:
 * SDL_JoystickAttachVirtualEx() => SDL_AttachVirtualJoystick()
 * SDL_JoystickClose() => SDL_CloseJoystick()
 * SDL_JoystickDetachVirtual() => SDL_DetachVirtualJoystick()
-* SDL_JoystickFromInstanceID() => SDL_GetJoystickFromInstanceID()
+* SDL_JoystickFromInstanceID() => SDL_GetJoystickFromID()
 * SDL_JoystickFromPlayerIndex() => SDL_GetJoystickFromPlayerIndex()
 * SDL_JoystickGetAttached() => SDL_JoystickConnected()
 * SDL_JoystickGetAxis() => SDL_GetJoystickAxis()
@@ -873,7 +873,7 @@ The following functions have been renamed:
 * SDL_JoystickGetSerial() => SDL_GetJoystickSerial()
 * SDL_JoystickGetType() => SDL_GetJoystickType()
 * SDL_JoystickGetVendor() => SDL_GetJoystickVendor()
-* SDL_JoystickInstanceID() => SDL_GetJoystickInstanceID()
+* SDL_JoystickInstanceID() => SDL_GetJoystickID()
 * SDL_JoystickIsVirtual() => SDL_IsJoystickVirtual()
 * SDL_JoystickName() => SDL_GetJoystickName()
 * SDL_JoystickNumAxes() => SDL_GetNumJoystickAxes()
@@ -899,18 +899,18 @@ The following functions have been removed:
 * SDL_JoystickAttachVirtual() - replaced with SDL_AttachVirtualJoystick()
 * SDL_JoystickCurrentPowerLevel() - replaced with SDL_GetJoystickConnectionState() and SDL_GetJoystickPowerInfo()
 * SDL_JoystickEventState() - replaced with SDL_SetJoystickEventsEnabled() and SDL_JoystickEventsEnabled()
-* SDL_JoystickGetDeviceGUID() - replaced with SDL_GetJoystickInstanceGUID()
+* SDL_JoystickGetDeviceGUID() - replaced with SDL_GetJoystickGUIDForID()
 * SDL_JoystickGetDeviceInstanceID()
-* SDL_JoystickGetDevicePlayerIndex() - replaced with SDL_GetJoystickInstancePlayerIndex()
-* SDL_JoystickGetDeviceProduct() - replaced with SDL_GetJoystickInstanceProduct()
-* SDL_JoystickGetDeviceProductVersion() - replaced with SDL_GetJoystickInstanceProductVersion()
-* SDL_JoystickGetDeviceType() - replaced with SDL_GetJoystickInstanceType()
-* SDL_JoystickGetDeviceVendor() - replaced with SDL_GetJoystickInstanceVendor()
+* SDL_JoystickGetDevicePlayerIndex() - replaced with SDL_GetJoystickPlayerIndexForID()
+* SDL_JoystickGetDeviceProduct() - replaced with SDL_GetJoystickProductForID()
+* SDL_JoystickGetDeviceProductVersion() - replaced with SDL_GetJoystickProductVersionForID()
+* SDL_JoystickGetDeviceType() - replaced with SDL_GetJoystickTypeForID()
+* SDL_JoystickGetDeviceVendor() - replaced with SDL_GetJoystickVendorForID()
 * SDL_JoystickHasLED() - replaced with SDL_PROP_JOYSTICK_CAP_RGB_LED_BOOLEAN
 * SDL_JoystickHasRumble() - replaced with SDL_PROP_JOYSTICK_CAP_RUMBLE_BOOLEAN
 * SDL_JoystickHasRumbleTriggers() - replaced with SDL_PROP_JOYSTICK_CAP_TRIGGER_RUMBLE_BOOLEAN
-* SDL_JoystickNameForIndex() - replaced with SDL_GetJoystickInstanceName()
-* SDL_JoystickPathForIndex() - replaced with SDL_GetJoystickInstancePath()
+* SDL_JoystickNameForIndex() - replaced with SDL_GetJoystickNameForID()
+* SDL_JoystickPathForIndex() - replaced with SDL_GetJoystickPathForID()
 * SDL_NumJoysticks() - replaced with SDL_GetJoysticks()
 * SDL_VIRTUAL_JOYSTICK_DESC_VERSION - no longer needed, version info has been removed from SDL_VirtualJoystickDesc.
 
@@ -1571,9 +1571,9 @@ Rather than iterating over sensors using device index, there is a new function S
             for (i = 0; i < num_sensors; ++i) {
                 SDL_Log("Sensor %" SDL_PRIu32 ": %s, type %d, platform type %d\n",
                         sensors[i],
-                        SDL_GetSensorInstanceName(sensors[i]),
-                        SDL_GetSensorInstanceType(sensors[i]),
-                        SDL_GetSensorInstanceNonPortableType(sensors[i]));
+                        SDL_GetSensorNameForID(sensors[i]),
+                        SDL_GetSensorTypeForID(sensors[i]),
+                        SDL_GetSensorNonPortableTypeForID(sensors[i]));
             }
             SDL_free(sensors);
         }
@@ -1587,9 +1587,9 @@ Removed SDL_SensorGetDataWithTimestamp(), if you want timestamps for the sensor 
 
 The following functions have been renamed:
 * SDL_SensorClose() => SDL_CloseSensor()
-* SDL_SensorFromInstanceID() => SDL_GetSensorFromInstanceID()
+* SDL_SensorFromInstanceID() => SDL_GetSensorFromID()
 * SDL_SensorGetData() => SDL_GetSensorData()
-* SDL_SensorGetInstanceID() => SDL_GetSensorInstanceID()
+* SDL_SensorGetInstanceID() => SDL_GetSensorID()
 * SDL_SensorGetName() => SDL_GetSensorName()
 * SDL_SensorGetNonPortableType() => SDL_GetSensorNonPortableType()
 * SDL_SensorGetType() => SDL_GetSensorType()
@@ -1600,9 +1600,9 @@ The following functions have been removed:
 * SDL_LockSensors()
 * SDL_NumSensors() - replaced with SDL_GetSensors()
 * SDL_SensorGetDeviceInstanceID()
-* SDL_SensorGetDeviceName() - replaced with SDL_GetSensorInstanceName()
-* SDL_SensorGetDeviceNonPortableType() - replaced with SDL_GetSensorInstanceNonPortableType()
-* SDL_SensorGetDeviceType() - replaced with SDL_GetSensorInstanceType()
+* SDL_SensorGetDeviceName() - replaced with SDL_GetSensorNameForID()
+* SDL_SensorGetDeviceNonPortableType() - replaced with SDL_GetSensorNonPortableTypeForID()
+* SDL_SensorGetDeviceType() - replaced with SDL_GetSensorTypeForID()
 * SDL_UnlockSensors()
 
 ## SDL_shape.h
@@ -1644,7 +1644,20 @@ The `format` member of SDL_Surface is now an enumerated pixel format value. You 
 
 The userdata member of SDL_Surface has been replaced with a more general properties interface, which can be queried with SDL_GetSurfaceProperties()
 
-Indexed format surfaces no longer have a palette by default. Surfaces without a palette will copy the pixels untranslated between surfaces. You should use SDL_CreatePalette() to create a palette and call SDL_SetSurfacePalette() to associate it with the final indexed surface before copying it to color pixels.
+Indexed format surfaces no longer have a palette by default. Surfaces without a palette will copy the pixels untranslated between surfaces.
+
+Code that used to look like this:
+```c
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, 32, 32, 8, SDL_PIXELFORMAT_INDEX8);
+    SDL_Palette *palette = surface->format->palette;
+    ...
+```
+should be changed to:
+```c
+    SDL_Surface *surface = SDL_CreateSurface(32, 32, SDL_PIXELFORMAT_INDEX8);
+    SDL_Palette *palette = SDL_CreateSurfacePalette(surface);
+    ...
+```
 
 Removed the unused 'flags' parameter from SDL_ConvertSurface.
 
@@ -1735,23 +1748,36 @@ The following symbols have been renamed:
 
 SDL_WindowsMessageHook has changed signatures so the message may be modified and it can block further message processing.
 
-SDL_AndroidGetExternalStorageState() takes the state as an output parameter and returns 0 if the function succeeds or a negative error code if there was an error.
+SDL_GetAndroidExternalStorageState() takes the state as an output parameter and returns 0 if the function succeeds or a negative error code if there was an error.
 
 SDL_AndroidRequestPermission is no longer a blocking call; the caller now provides a callback function that fires when a response is available.
 
-SDL_iPhoneSetAnimationCallback() and SDL_iPhoneSetEventPump() have been renamed to SDL_iOSSetAnimationCallback() and SDL_iOSSetEventPump(), respectively. SDL2 has had macros to provide this new name with the old symbol since the introduction of the iPad, but now the correctly-named symbol is the only option.
+SDL_iPhoneSetAnimationCallback() and SDL_iPhoneSetEventPump() have been renamed to SDL_SetiOSAnimationCallback() and SDL_SetiOSEventPump(), respectively. SDL2 has had macros to provide this new name with the old symbol since the introduction of the iPad, but now the correctly-named symbol is the only option.
 
 
 The following functions have been removed:
 * SDL_RenderGetD3D11Device() - replaced with the "SDL.renderer.d3d11.device" property
 * SDL_RenderGetD3D12Device() - replaced with the "SDL.renderer.d3d12.device" property
 * SDL_RenderGetD3D9Device() - replaced with the "SDL.renderer.d3d9.device" property
-* SDL_WinRTGetFSPathUNICODE() - Use SDL_WinRTGetFSPath() and SDL_iconv_string to convert from UTF-8 to UTF-16.
+* SDL_GetWinRTFSPathUNICODE() - Use SDL_GetWinRTFSPath() and SDL_iconv_string to convert from UTF-8 to UTF-16.
 
 The following functions have been renamed:
-* SDL_WinRTGetFSPathUTF8() => SDL_WinRTGetFSPath()
-* SDL_iPhoneSetAnimationCallback() => SDL_iOSSetAnimationCallback()
-* SDL_iPhoneSetEventPump() => SDL_iOSSetEventPump()
+* SDL_AndroidGetActivity() => SDL_GetAndroidActivity()
+* SDL_AndroidGetExternalStoragePath() => SDL_GetAndroidExternalStoragePath()
+* SDL_AndroidGetExternalStorageState() => SDL_GetAndroidExternalStorageState()
+* SDL_AndroidGetInternalStoragePath() => SDL_GetAndroidInternalStoragePath()
+* SDL_AndroidGetJNIEnv() => SDL_GetAndroidJNIEnv()
+* SDL_Direct3D9GetAdapterIndex() => SDL_GetDirect3D9AdapterIndex()
+* SDL_GDKGetDefaultUser() => SDL_GetGDKDefaultUser()
+* SDL_GDKGetTaskQueue() => SDL_GetGDKTaskQueue()
+* SDL_LinuxSetThreadPriority() => SDL_SetLinuxThreadPriority()
+* SDL_LinuxSetThreadPriorityAndPolicy() => SDL_SetLinuxThreadPriorityAndPolicy()
+* SDL_WinRTGetDeviceFamily() => SDL_GetWinRTDeviceFamily()
+* SDL_GetWinRTFSPathUTF8() => SDL_GetWinRTFSPath()
+* SDL_iOSSetAnimationCallback() => SDL_SetiOSAnimationCallback()
+* SDL_iOSSetEventPump() => SDL_SetiOSEventPump()
+* SDL_iPhoneSetAnimationCallback() => SDL_SetiOSAnimationCallback()
+* SDL_iPhoneSetEventPump() => SDL_SetiOSEventPump()
 
 ## SDL_syswm.h
 

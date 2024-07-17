@@ -192,7 +192,7 @@ static void psp_on_vblank(u32 sub, PSP_RenderData *data)
     }
 }
 
-static int PixelFormatToPSPFMT(Uint32 format)
+static int PixelFormatToPSPFMT(SDL_PixelFormat format)
 {
     switch (format) {
     case SDL_PIXELFORMAT_BGR565:
@@ -990,9 +990,19 @@ static void PSP_SetBlendState(PSP_RenderData *data, PSP_BlendState *state)
             sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
             sceGuEnable(GU_BLEND);
             break;
+        case SDL_BLENDMODE_BLEND_PREMULTIPLIED:
+            sceGuTexFunc(GU_TFX_MODULATE , GU_TCC_RGBA);
+            sceGuBlendFunc(GU_ADD, GU_FIX, GU_ONE_MINUS_SRC_ALPHA, 0x00FFFFFF, 0 );
+            sceGuEnable(GU_BLEND);
+            break;
         case SDL_BLENDMODE_ADD:
             sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
             sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_FIX, 0, 0x00FFFFFF);
+            sceGuEnable(GU_BLEND);
+            break;
+        case SDL_BLENDMODE_ADD_PREMULTIPLIED:
+            sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+            sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0, 0x00FFFFFF);
             sceGuEnable(GU_BLEND);
             break;
         case SDL_BLENDMODE_MOD:

@@ -367,6 +367,46 @@ float SDL_GetSurfaceHDRHeadroom(SDL_Surface *surface, SDL_Colorspace colorspace)
     return 1.0f;
 }
 
+SDL_Palette *SDL_CreateSurfacePalette(SDL_Surface *surface)
+{
+    SDL_Palette *palette;
+
+    if (!SDL_SurfaceValid(surface)) {
+        SDL_InvalidParamError("surface");
+        return NULL;
+    }
+
+    if (!SDL_ISPIXELFORMAT_INDEXED(surface->format)) {
+        SDL_SetError("The surface is not indexed format");
+        return NULL;
+    }
+
+    palette = SDL_CreatePalette((1 << SDL_BITSPERPIXEL(surface->format)));
+    if (!palette) {
+        return NULL;
+    }
+
+    if (palette->ncolors == 2) {
+        /* Create a black and white bitmap palette */
+        palette->colors[0].r = 0xFF;
+        palette->colors[0].g = 0xFF;
+        palette->colors[0].b = 0xFF;
+        palette->colors[1].r = 0x00;
+        palette->colors[1].g = 0x00;
+        palette->colors[1].b = 0x00;
+    }
+
+    if (SDL_SetSurfacePalette(surface, palette) < 0) {
+        SDL_DestroyPalette(palette);
+        return NULL;
+    }
+
+    /* The surface has retained the palette, we can remove the reference here */
+    SDL_assert(palette->refcount == 2);
+    SDL_DestroyPalette(palette);
+    return palette;
+}
+
 int SDL_SetSurfacePalette(SDL_Surface *surface, SDL_Palette *palette)
 {
     if (!SDL_SurfaceValid(surface)) {
@@ -668,15 +708,21 @@ int SDL_SetSurfaceBlendMode(SDL_Surface *surface, SDL_BlendMode blendMode)
 
     status = 0;
     flags = surface->internal->map.info.flags;
-    surface->internal->map.info.flags &= ~(SDL_COPY_BLEND | SDL_COPY_ADD | SDL_COPY_MOD | SDL_COPY_MUL);
+    surface->internal->map.info.flags &= ~(SDL_COPY_BLEND | SDL_COPY_BLEND_PREMULTIPLIED | SDL_COPY_ADD | SDL_COPY_ADD_PREMULTIPLIED | SDL_COPY_MOD | SDL_COPY_MUL);
     switch (blendMode) {
     case SDL_BLENDMODE_NONE:
         break;
     case SDL_BLENDMODE_BLEND:
         surface->internal->map.info.flags |= SDL_COPY_BLEND;
         break;
+    case SDL_BLENDMODE_BLEND_PREMULTIPLIED:
+        surface->internal->map.info.flags |= SDL_COPY_BLEND_PREMULTIPLIED;
+        break;
     case SDL_BLENDMODE_ADD:
         surface->internal->map.info.flags |= SDL_COPY_ADD;
+        break;
+    case SDL_BLENDMODE_ADD_PREMULTIPLIED:
+        surface->internal->map.info.flags |= SDL_COPY_ADD_PREMULTIPLIED;
         break;
     case SDL_BLENDMODE_MOD:
         surface->internal->map.info.flags |= SDL_COPY_MOD;
@@ -706,12 +752,18 @@ int SDL_GetSurfaceBlendMode(SDL_Surface *surface, SDL_BlendMode *blendMode)
         return 0;
     }
 
-    switch (surface->internal->map.info.flags & (SDL_COPY_BLEND | SDL_COPY_ADD | SDL_COPY_MOD | SDL_COPY_MUL)) {
+    switch (surface->internal->map.info.flags & (SDL_COPY_BLEND | SDL_COPY_BLEND_PREMULTIPLIED | SDL_COPY_ADD | SDL_COPY_ADD_PREMULTIPLIED | SDL_COPY_MOD | SDL_COPY_MUL)) {
     case SDL_COPY_BLEND:
         *blendMode = SDL_BLENDMODE_BLEND;
         break;
+    case SDL_COPY_BLEND_PREMULTIPLIED:
+        *blendMode = SDL_BLENDMODE_BLEND_PREMULTIPLIED;
+        break;
     case SDL_COPY_ADD:
         *blendMode = SDL_BLENDMODE_ADD;
+        break;
+    case SDL_COPY_ADD_PREMULTIPLIED:
+        *blendMode = SDL_BLENDMODE_ADD_PREMULTIPLIED;
         break;
     case SDL_COPY_MOD:
         *blendMode = SDL_BLENDMODE_MOD;
@@ -1048,7 +1100,7 @@ int SDL_BlitSurfaceUncheckedScaled(SDL_Surface *src, const SDL_Rect *srcrect,
                                    SDL_ScaleMode scaleMode)
 {
     static const Uint32 complex_copy_flags = (SDL_COPY_MODULATE_COLOR | SDL_COPY_MODULATE_ALPHA |
-                                              SDL_COPY_BLEND | SDL_COPY_ADD | SDL_COPY_MOD | SDL_COPY_MUL |
+                                              SDL_COPY_BLEND | SDL_COPY_BLEND_PREMULTIPLIED | SDL_COPY_ADD | SDL_COPY_ADD_PREMULTIPLIED | SDL_COPY_MOD | SDL_COPY_MUL |
                                               SDL_COPY_COLORKEY);
 
     if (scaleMode != SDL_SCALEMODE_NEAREST && scaleMode != SDL_SCALEMODE_LINEAR && scaleMode != SDL_SCALEMODE_BEST) {

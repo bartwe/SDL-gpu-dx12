@@ -2894,7 +2894,7 @@ if(SDL_VIDEO)
 endif()
 
 if(SDL_GPU)
-  if(SDL_VIDEO_RENDER_D3D11)
+  if(HAVE_D3D11_H)
     set(SDL_GPU_D3D11 1)
     set(HAVE_SDL_GPU TRUE)
   endif()
