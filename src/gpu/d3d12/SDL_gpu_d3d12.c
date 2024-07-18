@@ -1041,6 +1041,10 @@ SDL_GpuShader *D3D12_CreateShader(
     size_t bytecodeSize;
     D3D12Shader *shader;
 
+    if ((shaderCreateInfo->stage != SDL_GPU_SHADERSTAGE_VERTEX) && (shaderCreateInfo->stage != SDL_GPU_SHADERSTAGE_FRAGMENT)) {
+        SDL_assert(FALSE);
+    }
+
     if (!D3D12_INTERNAL_CreateShaderBytecode(
             renderer,
             shaderCreateInfo->stage,
@@ -1048,8 +1052,8 @@ SDL_GpuShader *D3D12_CreateShader(
             shaderCreateInfo->code,
             shaderCreateInfo->codeSize,
             shaderCreateInfo->entryPointName,
-            shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecode : NULL,
-            shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX ? &bytecodeSize : NULL)) {
+            &bytecode,
+            &bytecodeSize)) {
         return NULL;
     }
     shader = (D3D12Shader *)SDL_calloc(1, sizeof(D3D12Shader));
@@ -1058,11 +1062,9 @@ SDL_GpuShader *D3D12_CreateShader(
     shader->storageBufferCount = shaderCreateInfo->storageBufferCount;
     shader->storageTextureCount = shaderCreateInfo->storageTextureCount;
     shader->uniformBufferCount = shaderCreateInfo->uniformBufferCount;
-    if (shaderCreateInfo->stage == SDL_GPU_SHADERSTAGE_VERTEX) {
-        /* Store the raw bytecode and its length for creating InputLayouts */
-        shader->bytecode = bytecode;
-        shader->bytecodeSize = bytecodeSize;
-    }
+
+    shader->bytecode = bytecode;
+    shader->bytecodeSize = bytecodeSize;
 
     return (SDL_GpuShader *)shader;
 }
