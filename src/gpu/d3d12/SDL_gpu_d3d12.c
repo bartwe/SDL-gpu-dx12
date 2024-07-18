@@ -79,6 +79,7 @@
 #define MAX_ROOT_SIGNATURE_PARAMETERS       64
 #define MAX_VERTEX_UNIFORM_BUFFERS          14
 #define MAX_FRAGMENT_UNIFORM_BUFFERS        14
+#define MAX_UNIFORM_BUFFER_POOL_SIZE        16
 
 #ifdef _WIN32
 #define HRESULT_FMT "(0x%08lX)"
@@ -338,6 +339,9 @@ struct D3D12Renderer
     ID3D12Device *device;
     D3D12CommandBuffer *commandBuffer;
     PFN_D3D12_SERIALIZE_ROOT_SIGNATURE D3D12SerializeRootSignature_func;
+
+    Uint32 uniformBufferPoolCount;
+    D3D12UniformBuffer *uniformBufferPool[MAX_UNIFORM_BUFFER_POOL_SIZE];
 };
 
 struct D3D12CommandBuffer
@@ -366,11 +370,15 @@ struct D3D12CommandBuffer
 
     ID3D12DescriptorHeap *descriptorHeap;
 
-    D3D12_GPU_DESCRIPTOR_HANDLE vertexUniformBuffers[MAX_VERTEX_UNIFORM_BUFFERS];
-    D3D12_GPU_DESCRIPTOR_HANDLE fragmentUniformBuffers[MAX_FRAGMENT_UNIFORM_BUFFERS];
+    D3D12UniformBuffer *vertexUniformBuffers[MAX_VERTEX_UNIFORM_BUFFERS];
+    D3D12UniformBuffer *fragmentUniformBuffers[MAX_FRAGMENT_UNIFORM_BUFFERS];
 
     SDL_bool needVertexUniformBufferBind;
     SDL_bool needFragmentUniformBufferBind;
+
+    Uint32 usedUniformBufferCount;
+    Uint32 usedUniformBufferCapacity;
+    D3D12UniformBuffer **usedUniformBuffers;
 };
 
 struct D3D12Shader
@@ -405,8 +413,11 @@ struct D3D12GraphicsPipeline
 
 struct D3D12UniformBuffer
 {
-    ID3D12Resource *resource;
+    ID3D12Resource *buffer;
     D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
+    Uint32 writeOffset;
+    Uint32 drawOffset;
+    Uint32 currentBlockSize;
 };
 
 /* Logging */
@@ -987,7 +998,6 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
     pipeline->fragmentStorageBufferCount = fragShader->storageBufferCount;
     pipeline->fragmentUniformBufferCount = fragShader->uniformBufferCount;
 
-
     return (SDL_GpuGraphicsPipeline *)pipeline;
 }
 
@@ -1265,6 +1275,101 @@ void D3D12_BeginRenderPass(
         &defaultScissor);
 }
 
+static void D3D12_INTERNAL_TrackUniformBuffer(
+    D3D12CommandBuffer *commandBuffer,
+    D3D12UniformBuffer *uniformBuffer)
+{
+    Uint32 i;
+    for (i = 0; i < commandBuffer->usedUniformBufferCount; i += 1) {
+        if (commandBuffer->usedUniformBuffers[i] == uniformBuffer) {
+            return;
+        }
+    }
+
+    if (commandBuffer->usedUniformBufferCount == commandBuffer->usedUniformBufferCapacity) {
+        commandBuffer->usedUniformBufferCapacity += 1;
+        commandBuffer->usedUniformBuffers = SDL_realloc(
+            commandBuffer->usedUniformBuffers,
+            commandBuffer->usedUniformBufferCapacity * sizeof(D3D12UniformBuffer *));
+        for (int i = commandBuffer->usedUniformBufferCount; i < commandBuffer->usedUniformBufferCapacity; ++i)
+            SDL_zerop(commandBuffer->usedUniformBuffers[i]);
+    }
+
+    commandBuffer->usedUniformBuffers[commandBuffer->usedUniformBufferCount] = uniformBuffer;
+    commandBuffer->usedUniformBufferCount += 1;
+}
+
+static D3D12UniformBuffer *D3D12_INTERNAL_CreateUniformBuffer(
+    D3D12Renderer *renderer,
+    Uint32 sizeInBytes)
+{
+    D3D12UniformBuffer *uniformBuffer;
+    ID3D12Resource *buffer;
+    D3D12_HEAP_PROPERTIES heapProperties;
+    D3D12_RESOURCE_DESC resourceDesc;
+    D3D12_RESOURCE_STATES initialState;
+    HRESULT res;
+
+    heapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
+    heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+    heapProperties.CreationNodeMask = 1;
+    heapProperties.VisibleNodeMask = 1;
+
+    resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    resourceDesc.Alignment = 0;
+    resourceDesc.Width = sizeInBytes;
+    resourceDesc.Height = 1;
+    resourceDesc.DepthOrArraySize = 1;
+    resourceDesc.MipLevels = 1;
+    resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+    resourceDesc.SampleDesc.Count = 1;
+    resourceDesc.SampleDesc.Quality = 0;
+    resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    initialState = D3D12_RESOURCE_STATE_GENERIC_READ;
+
+    res = ID3D12Device_CreateCommittedResource(
+        renderer->device,
+        &heapProperties,
+        D3D12_HEAP_FLAG_NONE,
+        &resourceDesc,
+        initialState,
+        NULL,
+        &D3D_IID_ID3D12Resource,
+        (void **)&buffer);
+    if (FAILED(res)) {
+        ERROR_CHECK_RETURN("Could not create uniform buffer", NULL)
+    }
+
+    uniformBuffer = (D3D12UniformBuffer *)SDL_malloc(sizeof(D3D12UniformBuffer));
+    SDL_zerop(uniformBuffer);
+    uniformBuffer->buffer = buffer;
+
+    return uniformBuffer;
+}
+
+static D3D12UniformBuffer *D3D12_INTERNAL_AcquireUniformBufferFromPool(
+    D3D12CommandBuffer *commandBuffer)
+{
+    D3D12Renderer *renderer = commandBuffer->renderer;
+    D3D12UniformBuffer *uniformBuffer;
+
+    if (renderer->uniformBufferPoolCount > 0) {
+        uniformBuffer = renderer->uniformBufferPool[renderer->uniformBufferPoolCount - 1];
+        renderer->uniformBufferPoolCount -= 1;
+    } else {
+        uniformBuffer = D3D12_INTERNAL_CreateUniformBuffer(
+            renderer,
+            UNIFORM_BUFFER_SIZE);
+    }
+
+    D3D12_INTERNAL_TrackUniformBuffer(commandBuffer, uniformBuffer);
+
+    return uniformBuffer;
+}
+
 void D3D12_BindGraphicsPipeline(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_GpuGraphicsPipeline *graphicsPipeline)
@@ -1296,25 +1401,25 @@ void D3D12_BindGraphicsPipeline(
 
     // Bind the uniform buffers (descriptor tables)
     for (Uint32 i = 0; i < pipeline->vertexUniformBufferCount; i++) {
-        if (d3d12CommandBuffer->vertexUniformBuffers[i].ptr == NULL) {
+        if (d3d12CommandBuffer->vertexUniformBuffers[i] == NULL) {
             d3d12CommandBuffer->vertexUniformBuffers[i] = D3D12_INTERNAL_AcquireUniformBufferFromPool(
                 d3d12CommandBuffer);
         }
         ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
             d3d12CommandBuffer->graphicsCommandList,
             i,
-            d3d12CommandBuffer->vertexUniformBuffers[i]);
+            d3d12CommandBuffer->vertexUniformBuffers[i]->gpuDescriptorHandle);
     }
 
     for (Uint32 i = 0; i < pipeline->fragmentUniformBufferCount; i++) {
-        if (d3d12CommandBuffer->fragmentUniformBuffers[i].ptr == NULL) {
+        if (d3d12CommandBuffer->fragmentUniformBuffers[i] == NULL) {
             d3d12CommandBuffer->fragmentUniformBuffers[i] = D3D12_INTERNAL_AcquireUniformBufferFromPool(
                 d3d12CommandBuffer);
         }
         ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
             d3d12CommandBuffer->graphicsCommandList,
             pipeline->vertexUniformBufferCount + i,
-            d3d12CommandBuffer->fragmentUniformBuffers[i]);
+            d3d12CommandBuffer->fragmentUniformBuffers[i]->gpuDescriptorHandle);
     }
 
     // Mark that uniform bindings are needed
