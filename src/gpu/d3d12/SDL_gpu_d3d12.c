@@ -80,6 +80,10 @@
 #define MAX_VERTEX_UNIFORM_BUFFERS          14
 #define MAX_FRAGMENT_UNIFORM_BUFFERS        14
 #define MAX_UNIFORM_BUFFER_POOL_SIZE        16
+#define MAX_VERTEX_SAMPLERS                 16
+#define MAX_FRAGMENT_SAMPLERS               16
+#define MAX_VERTEX_RESOURCE_COUNT           (128 + 14 + 8)
+#define MAX_FRAGMENT_RESOURCE_COUNT         (128 + 14 + 8)
 
 #ifdef _WIN32
 #define HRESULT_FMT "(0x%08lX)"
@@ -369,8 +373,11 @@ struct D3D12CommandBuffer
     D3D12GraphicsPipeline *currentGraphicsPipeline;
 
     ID3D12DescriptorHeap *descriptorHeap;
+    D3D12_GPU_DESCRIPTOR_HANDLE descriptorHeapHandle;
 
+    // cleanup
     D3D12UniformBuffer *vertexUniformBuffers[MAX_VERTEX_UNIFORM_BUFFERS];
+    // cleanup
     D3D12UniformBuffer *fragmentUniformBuffers[MAX_FRAGMENT_UNIFORM_BUFFERS];
 
     SDL_bool needVertexUniformBufferBind;
@@ -378,7 +385,26 @@ struct D3D12CommandBuffer
 
     Uint32 usedUniformBufferCount;
     Uint32 usedUniformBufferCapacity;
+    // not owned
     D3D12UniformBuffer **usedUniformBuffers;
+
+    SDL_bool needVertexSamplerBind;
+    SDL_bool needVertexResourceBind;
+    SDL_bool needFragmentSamplerBind;
+    SDL_bool needFragmentResourceBind;
+
+    // cleanup
+    ID3D12DescriptorHeap *vertexSamplerDescriptorHeap;
+    D3D12_GPU_DESCRIPTOR_HANDLE vertexSamplerDescriptorHeapHandle;
+    // cleanup
+    ID3D12DescriptorHeap *fragmentSamplerDescriptorHeap;
+    D3D12_GPU_DESCRIPTOR_HANDLE fragmentSamplerDescriptorHeapHandle;
+    // cleanup
+    ID3D12DescriptorHeap *vertexShaderResourceDescriptorHeap;
+    D3D12_GPU_DESCRIPTOR_HANDLE vertexShaderResourceDescriptorHeapHandle;
+    // cleanup
+    ID3D12DescriptorHeap *fragmentShaderResourceDescriptorHeap;
+    D3D12_GPU_DESCRIPTOR_HANDLE fragmentShaderResourceDescriptorHeapHandle;
 };
 
 struct D3D12Shader
@@ -415,6 +441,7 @@ struct D3D12UniformBuffer
 {
     ID3D12Resource *buffer;
     D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
+    D3D12_GPU_VIRTUAL_ADDRESS bufferLocation;
     Uint32 writeOffset;
     Uint32 drawOffset;
     Uint32 currentBlockSize;
@@ -1493,17 +1520,102 @@ void D3D12_DrawIndexedPrimitives(
     Uint32 primitiveCount,
     Uint32 instanceCount) { SDL_assert(SDL_FALSE); }
 
+static void D3D12_INTERNAL_BindGraphicsResources(
+    D3D12CommandBuffer *commandBuffer)
+{
+    D3D12GraphicsPipeline *graphicsPipeline = commandBuffer->currentGraphicsPipeline;
+
+    Uint32 vertexResourceCount =
+        graphicsPipeline->vertexSamplerCount +
+        graphicsPipeline->vertexStorageTextureCount +
+        graphicsPipeline->vertexStorageBufferCount;
+
+    Uint32 fragmentResourceCount =
+        graphicsPipeline->fragmentSamplerCount +
+        graphicsPipeline->fragmentStorageTextureCount +
+        graphicsPipeline->fragmentStorageBufferCount;
+
+    if (commandBuffer->needVertexSamplerBind) {
+        if (graphicsPipeline->vertexSamplerCount > 0) {
+            ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
+                commandBuffer->graphicsCommandList,
+                0,
+                commandBuffer->vertexSamplerDescriptorHeapHandle);
+        }
+        commandBuffer->needVertexSamplerBind = SDL_FALSE;
+    }
+
+    if (commandBuffer->needVertexResourceBind) {
+        if (vertexResourceCount > 0) {
+            ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
+                commandBuffer->graphicsCommandList,
+                1,
+                commandBuffer->vertexShaderResourceDescriptorHeapHandle);
+        }
+        commandBuffer->needVertexResourceBind = SDL_FALSE;
+    }
+
+    if (commandBuffer->needVertexUniformBufferBind) {
+        for (Uint32 i = 0; i < graphicsPipeline->vertexUniformBufferCount; ++i) {
+            ID3D12GraphicsCommandList2_SetGraphicsRootConstantBufferView(
+                commandBuffer->graphicsCommandList,
+                i + 2,
+                commandBuffer->vertexUniformBuffers[i]->bufferLocation);
+        }
+        commandBuffer->needVertexUniformBufferBind = SDL_FALSE;
+    }
+
+    if (commandBuffer->needFragmentSamplerBind) {
+        if (graphicsPipeline->fragmentSamplerCount > 0) {
+            ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
+                commandBuffer->graphicsCommandList,
+                graphicsPipeline->vertexSamplerCount + 2,
+                commandBuffer->fragmentSamplerDescriptorHeapHandle);
+        }
+        commandBuffer->needFragmentSamplerBind = SDL_FALSE;
+    }
+
+    if (commandBuffer->needFragmentResourceBind) {
+        if (fragmentResourceCount > 0) {
+            ID3D12GraphicsCommandList2_SetGraphicsRootDescriptorTable(
+                commandBuffer->graphicsCommandList,
+                graphicsPipeline->vertexSamplerCount + 3,
+                commandBuffer->fragmentShaderResourceDescriptorHeapHandle);
+        }
+        commandBuffer->needFragmentResourceBind = SDL_FALSE;
+    }
+
+    if (commandBuffer->needFragmentUniformBufferBind) {
+        for (Uint32 i = 0; i < graphicsPipeline->fragmentUniformBufferCount; ++i) {
+            ID3D12GraphicsCommandList2_SetGraphicsRootConstantBufferView(
+                commandBuffer->graphicsCommandList,
+                graphicsPipeline->vertexUniformBufferCount + 2 + i,
+                commandBuffer->fragmentUniformBuffers[i]->bufferLocation);
+        }
+        commandBuffer->needFragmentUniformBufferBind = SDL_FALSE;
+    }
+}
+
 void D3D12_DrawPrimitives(
     SDL_GpuCommandBuffer *commandBuffer,
     Uint32 vertexStart,
     Uint32 primitiveCount)
 {
-    /*
-    D3D12CommandBuffer *d3d11CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
-    D3D12_INTERNAL_BindGraphicsResources(d3d11CommandBuffer);
-    */
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+    D3D12_INTERNAL_BindGraphicsResources(d3d12CommandBuffer);
 
-    // temp noop
+    // Record the draw call
+    ID3D12GraphicsCommandList2_IASetPrimitiveTopology(
+        d3d12CommandBuffer->graphicsCommandList,
+        SDLToD3D12_PrimitiveType[d3d12CommandBuffer->currentGraphicsPipeline->primitiveType]);
+
+    ID3D12GraphicsCommandList2_DrawInstanced(
+        d3d12CommandBuffer->graphicsCommandList,
+        PrimitiveVerts(d3d12CommandBuffer->currentGraphicsPipeline->primitiveType, primitiveCount),
+        1, // Instance count
+        vertexStart,
+        0 // Start instance location
+    );
 }
 
 void D3D12_DrawPrimitivesIndirect(
@@ -2546,18 +2658,89 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
     renderer->commandBuffer->fenceValue = 1;
     renderer->commandBuffer->fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = { 0 };
-    heapDesc.NumDescriptors = 1;
-    heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    res = ID3D12Device_CreateDescriptorHeap(
-        renderer->device,
-        &heapDesc,
-        &SDL_IID_ID3D12DescriptorHeap,
-        (void **)&renderer->commandBuffer->descriptorHeap);
-    if (FAILED(res)) {
-        D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
-        ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap", NULL);
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC heapDesc = { 0 };
+        heapDesc.NumDescriptors = 1;
+        heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        res = ID3D12Device_CreateDescriptorHeap(
+            renderer->device,
+            &heapDesc,
+            &SDL_IID_ID3D12DescriptorHeap,
+            (void **)&renderer->commandBuffer->descriptorHeap);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+            ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap", NULL);
+        }
+        ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(renderer->commandBuffer->descriptorHeap, &renderer->commandBuffer->descriptorHeapHandle);
+    }
+
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc = { 0 };
+        samplerHeapDesc.NumDescriptors = MAX_VERTEX_SAMPLERS;
+        samplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        samplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        res = ID3D12Device_CreateDescriptorHeap(
+            renderer->device,
+            &samplerHeapDesc,
+            &SDL_IID_ID3D12DescriptorHeap,
+            (void **)&renderer->commandBuffer->vertexSamplerDescriptorHeap);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+            ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap for vertex samplers", NULL);
+        }
+        ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(renderer->commandBuffer->vertexSamplerDescriptorHeap, &renderer->commandBuffer->vertexSamplerDescriptorHeapHandle);
+    }
+
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc = { 0 };
+        samplerHeapDesc.NumDescriptors = MAX_FRAGMENT_SAMPLERS;
+        samplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        samplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        res = ID3D12Device_CreateDescriptorHeap(
+            renderer->device,
+            &samplerHeapDesc,
+            &SDL_IID_ID3D12DescriptorHeap,
+            (void **)&renderer->commandBuffer->fragmentSamplerDescriptorHeap);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+            ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap for fragment samplers", NULL);
+        }
+        ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(renderer->commandBuffer->fragmentSamplerDescriptorHeap, &renderer->commandBuffer->fragmentSamplerDescriptorHeapHandle);
+    }
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = { 0 };
+        srvHeapDesc.NumDescriptors = MAX_VERTEX_RESOURCE_COUNT;
+        srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+        res = ID3D12Device_CreateDescriptorHeap(
+            renderer->device,
+            &srvHeapDesc,
+            &SDL_IID_ID3D12DescriptorHeap,
+            (void **)&renderer->commandBuffer->vertexShaderResourceDescriptorHeap);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+            ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap for vertex shader resources", NULL);
+        }
+        ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(renderer->commandBuffer->vertexShaderResourceDescriptorHeap, &renderer->commandBuffer->vertexShaderResourceDescriptorHeapHandle);
+    }
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = { 0 };
+        srvHeapDesc.NumDescriptors = MAX_FRAGMENT_RESOURCE_COUNT;
+        srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+        res = ID3D12Device_CreateDescriptorHeap(
+            renderer->device,
+            &srvHeapDesc,
+            &SDL_IID_ID3D12DescriptorHeap,
+            (void **)&renderer->commandBuffer->fragmentShaderResourceDescriptorHeap);
+        if (FAILED(res)) {
+            D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
+            ERROR_CHECK_RETURN("Could not create ID3D12DescriptorHeap for fragment shader resources", NULL);
+        }
+        ID3D12DescriptorHeap_GetGPUDescriptorHandleForHeapStart(renderer->commandBuffer->fragmentShaderResourceDescriptorHeap, &renderer->commandBuffer->fragmentShaderResourceDescriptorHeapHandle);
     }
 
     /* Create the SDL_Gpu Device */
