@@ -802,7 +802,11 @@ static BOOL D3D12_INTERNAL_CreateShaderBytecode(
 
 SDL_GpuComputePipeline *D3D12_CreateComputePipeline(
     SDL_GpuRenderer *driverData,
-    SDL_GpuComputePipelineCreateInfo *pipelineCreateInfo) { SDL_assert(SDL_FALSE); }
+    SDL_GpuComputePipelineCreateInfo *pipelineCreateInfo)
+{
+    SDL_assert(SDL_FALSE);
+    return NULL;
+}
 
 SDL_bool D3D12_INTERNAL_ConvertRasterizerState(SDL_GpuRasterizerState rasterizerState, D3D12_RASTERIZER_DESC *desc)
 {
@@ -1030,7 +1034,11 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
 
 SDL_GpuSampler *D3D12_CreateSampler(
     SDL_GpuRenderer *driverData,
-    SDL_GpuSamplerCreateInfo *samplerCreateInfo) { SDL_assert(SDL_FALSE); }
+    SDL_GpuSamplerCreateInfo *samplerCreateInfo)
+{
+    SDL_assert(SDL_FALSE);
+    return NULL;
+}
 
 SDL_GpuShader *D3D12_CreateShader(
     SDL_GpuRenderer *driverData,
@@ -1071,17 +1079,29 @@ SDL_GpuShader *D3D12_CreateShader(
 
 SDL_GpuTexture *D3D12_CreateTexture(
     SDL_GpuRenderer *driverData,
-    SDL_GpuTextureCreateInfo *textureCreateInfo) { SDL_assert(SDL_FALSE); }
+    SDL_GpuTextureCreateInfo *textureCreateInfo)
+{
+    SDL_assert(SDL_FALSE);
+    return NULL;
+}
 
 SDL_GpuBuffer *D3D12_CreateBuffer(
     SDL_GpuRenderer *driverData,
     SDL_GpuBufferUsageFlags usageFlags,
-    Uint32 sizeInBytes) { SDL_assert(SDL_FALSE); }
+    Uint32 sizeInBytes)
+{
+    SDL_assert(SDL_FALSE);
+    return NULL;
+}
 
 SDL_GpuTransferBuffer *D3D12_CreateTransferBuffer(
     SDL_GpuRenderer *driverData,
     SDL_GpuTransferBufferUsage usage,
-    Uint32 sizeInBytes) { SDL_assert(SDL_FALSE); }
+    Uint32 sizeInBytes)
+{
+    SDL_assert(SDL_FALSE);
+    return NULL;
+}
 
 /* Debug Naming */
 
@@ -1786,12 +1806,20 @@ void D3D12_Blit(
 SDL_bool D3D12_SupportsSwapchainComposition(
     SDL_GpuRenderer *driverData,
     SDL_Window *window,
-    SDL_GpuSwapchainComposition swapchainComposition) { SDL_assert(SDL_FALSE); }
+    SDL_GpuSwapchainComposition swapchainComposition)
+{
+    SDL_assert(SDL_FALSE);
+    return SDL_FALSE;
+}
 
 SDL_bool D3D12_SupportsPresentMode(
     SDL_GpuRenderer *driverData,
     SDL_Window *window,
-    SDL_GpuPresentMode presentMode) { SDL_assert(SDL_FALSE); }
+    SDL_GpuPresentMode presentMode)
+{
+    SDL_assert(SDL_FALSE);
+    return SDL_FALSE;
+}
 
 static D3D12WindowData *D3D12_INTERNAL_FetchWindowData(
     SDL_Window *window)
@@ -2094,7 +2122,11 @@ SDL_bool D3D12_SetSwapchainParameters(
     SDL_GpuRenderer *driverData,
     SDL_Window *window,
     SDL_GpuSwapchainComposition swapchainComposition,
-    SDL_GpuPresentMode presentMode) { SDL_assert(SDL_FALSE); }
+    SDL_GpuPresentMode presentMode)
+{
+    SDL_assert(SDL_FALSE);
+    return SDL_FALSE;
+}
 
 SDL_GpuTextureFormat D3D12_GetSwapchainTextureFormat(
     SDL_GpuRenderer *driverData,
@@ -2215,7 +2247,11 @@ void D3D12_Submit(
 }
 
 SDL_GpuFence *D3D12_SubmitAndAcquireFence(
-    SDL_GpuCommandBuffer *commandBuffer) { SDL_assert(SDL_FALSE); }
+    SDL_GpuCommandBuffer *commandBuffer)
+{
+    SDL_assert(SDL_FALSE);
+    return NULL;
+}
 
 void D3D12_Wait(
     SDL_GpuRenderer *driverData) { SDL_assert(SDL_FALSE); }
@@ -2228,7 +2264,11 @@ void D3D12_WaitForFences(
 
 SDL_bool D3D12_QueryFence(
     SDL_GpuRenderer *driverData,
-    SDL_GpuFence *fence) { SDL_assert(SDL_FALSE); }
+    SDL_GpuFence *fence)
+{
+    SDL_assert(SDL_FALSE);
+    return SDL_FALSE;
+}
 
 void D3D12_ReleaseFence(
     SDL_GpuRenderer *driverData,
@@ -2240,12 +2280,20 @@ SDL_bool D3D12_IsTextureFormatSupported(
     SDL_GpuRenderer *driverData,
     SDL_GpuTextureFormat format,
     SDL_GpuTextureType type,
-    SDL_GpuTextureUsageFlags usage) { SDL_assert(SDL_FALSE); }
+    SDL_GpuTextureUsageFlags usage)
+{
+    SDL_assert(SDL_FALSE);
+    return SDL_FALSE;
+}
 
 SDL_GpuSampleCount D3D12_GetBestSampleCount(
     SDL_GpuRenderer *driverData,
     SDL_GpuTextureFormat format,
-    SDL_GpuSampleCount desiredSampleCount) { SDL_assert(SDL_FALSE); }
+    SDL_GpuSampleCount desiredSampleCount)
+{
+    SDL_assert(SDL_FALSE);
+    return SDL_GPU_SAMPLECOUNT_1;
+}
 
 static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
 {
@@ -2260,6 +2308,9 @@ static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
     IDXGIFactory4 *factory4;
     IDXGIFactory6 *factory6;
     IDXGIAdapter1 *adapter;
+
+    // D3D12 support is incomplete at this time
+    return SDL_FALSE;
 
     /* Can we load D3D12? */
 
