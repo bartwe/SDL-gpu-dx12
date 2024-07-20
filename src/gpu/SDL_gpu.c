@@ -20,6 +20,7 @@
 */
 #include "SDL_internal.h"
 #include "SDL_sysgpu.h"
+#include "SDL_gpu_spirv_c.h"
 
 /* FIXME: This could probably use SDL_ObjectValid */
 #define CHECK_DEVICE_MAGIC(device, retval)  \
@@ -300,6 +301,10 @@ SDL_GpuComputePipeline *SDL_GpuCreateComputePipeline(
         }
     }
 
+    if (computePipelineCreateInfo->format == SDL_GPU_SHADERFORMAT_SPIRV &&
+        device->backend != SDL_GPU_BACKEND_VULKAN) {
+        return SDL_CompileFromSPIRV(device, computePipelineCreateInfo, SDL_TRUE);
+    }
     return device->CreateComputePipeline(
         device->driverData,
         computePipelineCreateInfo);
@@ -384,6 +389,10 @@ SDL_GpuShader *SDL_GpuCreateShader(
         return NULL;
     }
 
+    if (shaderCreateInfo->format == SDL_GPU_SHADERFORMAT_SPIRV &&
+        device->backend != SDL_GPU_BACKEND_VULKAN) {
+        return SDL_CompileFromSPIRV(device, shaderCreateInfo, SDL_FALSE);
+    }
     return device->CreateShader(
         device->driverData,
         shaderCreateInfo);
