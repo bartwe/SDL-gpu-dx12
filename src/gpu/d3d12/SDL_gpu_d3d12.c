@@ -75,6 +75,7 @@
 #define WINDOW_PROPERTY_DATA                "SDL_GpuD3D12WindowPropertyData"
 #define D3D_FEATURE_LEVEL_CHOICE            D3D_FEATURE_LEVEL_11_1
 #define D3D_FEATURE_LEVEL_CHOICE_STR        "11_1"
+/* FIXME: just use sysgpu.h defines */
 #define SWAPCHAIN_BUFFER_COUNT              2
 #define MAX_ROOT_SIGNATURE_PARAMETERS       64
 #define MAX_VERTEX_UNIFORM_BUFFERS          14
@@ -118,11 +119,10 @@ static const IID D3D_IID_ID3D12CommandQueue = { 0x0ec870a6, 0x5d7e, 0x4c22, { 0x
 static const IID D3D_IID_ID3D12DescriptorHeap = { 0x8efb471d, 0x616c, 0x4f49, { 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51 } };
 static const IID D3D_IID_ID3D12Resource = { 0x696442be, 0xa72e, 0x4059, { 0xbc, 0x79, 0x5b, 0x5c, 0x98, 0x04, 0x0f, 0xad } };
 static const IID D3D_IID_ID3D12CommandAllocator = { 0x6102dee4, 0xaf59, 0x4b09, { 0xb9, 0x99, 0xb4, 0x4d, 0x73, 0xf0, 0x9b, 0x24 } };
-static const IID SDL_IID_ID3D12GraphicsCommandList2 = { 0x38C3E585, 0xFF17, 0x412C, { 0x91, 0x50, 0x4F, 0xC6, 0xF9, 0xD7, 0x2A, 0x28 } };
-static const IID SDL_IID_ID3D12Fence = { 0x0a753dcf, 0xc4d8, 0x4b91, { 0xad, 0xf6, 0xbe, 0x5a, 0x60, 0xd9, 0x5a, 0x76 } };
-static const IID SDL_IID_ID3D12RootSignature = { 0xc54a6b66, 0x72df, 0x4ee8, { 0x8b, 0xe5, 0xa9, 0x46, 0xa1, 0x42, 0x92, 0x14 } };
-static const IID SDL_IID_ID3D12PipelineState = { 0x765a30f3, 0xf624, 0x4c6f, { 0xa8, 0x28, 0xac, 0xe9, 0x48, 0x62, 0x24, 0x45 } };
-static const IID SDL_IID_ID3D12DescriptorHeap = { 0x8efb471d, 0x616c, 0x4f49, { 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51 } };
+static const IID D3D_IID_ID3D12GraphicsCommandList2 = { 0x38C3E585, 0xFF17, 0x412C, { 0x91, 0x50, 0x4F, 0xC6, 0xF9, 0xD7, 0x2A, 0x28 } };
+static const IID D3D_IID_ID3D12Fence = { 0x0a753dcf, 0xc4d8, 0x4b91, { 0xad, 0xf6, 0xbe, 0x5a, 0x60, 0xd9, 0x5a, 0x76 } };
+static const IID D3D_IID_ID3D12RootSignature = { 0xc54a6b66, 0x72df, 0x4ee8, { 0x8b, 0xe5, 0xa9, 0x46, 0xa1, 0x42, 0x92, 0x14 } };
+static const IID D3D_IID_ID3D12PipelineState = { 0x765a30f3, 0xf624, 0x4c6f, { 0xa8, 0x28, 0xac, 0xe9, 0x48, 0x62, 0x24, 0x45 } };
 
 /* MinGW is missing a few defines/typedefs */
 #ifndef D3D12_IA_VERTEX_INPUT_STRUCTURE_ELEMENT_COUNT
@@ -349,7 +349,7 @@ struct D3D12Renderer
     IDXGIAdapter1 *adapter;
     void *d3d12_dll;
     ID3D12Device *device;
-    D3D12CommandBuffer *commandBuffer;
+    D3D12CommandBuffer *commandBuffer; /* FIXME: this should not be here */
     SDL_PFN_D3D12_SERIALIZE_ROOT_SIGNATURE D3D12SerializeRootSignature_func;
 
     Uint32 uniformBufferPoolCount;
@@ -616,7 +616,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
             return NULL;
         }
 
-        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        D3D12_DESCRIPTOR_RANGE descriptorRange = { 0 };
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
         descriptorRange.NumDescriptors = uniformBufferCount;
         descriptorRange.BaseShaderRegister = 0;
@@ -624,7 +624,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
         descriptorRanges[parameterCount] = descriptorRange;
 
-        D3D12_ROOT_PARAMETER rootParameter = {};
+        D3D12_ROOT_PARAMETER rootParameter = { 0 };
         rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         rootParameter.DescriptorTable.NumDescriptorRanges = 1;
         rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
@@ -639,7 +639,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
         }
-        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        D3D12_DESCRIPTOR_RANGE descriptorRange = { 0 };
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         descriptorRange.NumDescriptors = storageBufferCount;
         descriptorRange.BaseShaderRegister = 0;
@@ -647,7 +647,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
         descriptorRanges[parameterCount] = descriptorRange;
 
-        D3D12_ROOT_PARAMETER rootParameter = {};
+        D3D12_ROOT_PARAMETER rootParameter = { 0 };
         rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         rootParameter.DescriptorTable.NumDescriptorRanges = 1;
         rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
@@ -662,7 +662,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
         }
-        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        D3D12_DESCRIPTOR_RANGE descriptorRange = { 0 };
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         descriptorRange.NumDescriptors = storageTextureCount;
         descriptorRange.BaseShaderRegister = 0;
@@ -670,7 +670,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
         descriptorRanges[parameterCount] = descriptorRange;
 
-        D3D12_ROOT_PARAMETER rootParameter = {};
+        D3D12_ROOT_PARAMETER rootParameter = { 0 };
         rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         rootParameter.DescriptorTable.NumDescriptorRanges = 1;
         rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
@@ -685,7 +685,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Too many root signature arguments.");
             return NULL;
         }
-        D3D12_DESCRIPTOR_RANGE descriptorRange = {};
+        D3D12_DESCRIPTOR_RANGE descriptorRange = { 0 };
         descriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
         descriptorRange.NumDescriptors = samplerCount;
         descriptorRange.BaseShaderRegister = 0;
@@ -693,7 +693,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
         descriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
         descriptorRanges[parameterCount] = descriptorRange;
 
-        D3D12_ROOT_PARAMETER rootParameter = {};
+        D3D12_ROOT_PARAMETER rootParameter = { 0 };
         rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         rootParameter.DescriptorTable.NumDescriptorRanges = 1;
         rootParameter.DescriptorTable.pDescriptorRanges = &descriptorRanges[parameterCount];
@@ -703,7 +703,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
     }
 
     // Create the root signature description
-    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = { 0 };
     rootSignatureDesc.NumParameters = parameterCount;
     rootSignatureDesc.pParameters = rootParameters;
     rootSignatureDesc.NumStaticSamplers = 0;
@@ -730,7 +730,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
                                            0,
                                            ID3D10Blob_GetBufferPointer(serializedRootSignature),
                                            ID3D10Blob_GetBufferSize(serializedRootSignature),
-                                           &SDL_IID_ID3D12RootSignature,
+                                           &D3D_IID_ID3D12RootSignature,
                                            (void **)&rootSignature);
 
     if (FAILED(res)) {
@@ -1008,7 +1008,7 @@ SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
     psoDesc.pRootSignature = rootSignature;
     ID3D12PipelineState *pipelineState = NULL;
 
-    HRESULT res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &SDL_IID_ID3D12PipelineState, (void **)&pipelineState);
+    HRESULT res = ID3D12Device_CreateGraphicsPipelineState(renderer->device, &psoDesc, &D3D_IID_ID3D12PipelineState, (void **)&pipelineState);
     if (FAILED(res)) {
         D3D12_INTERNAL_LogError(renderer->device, "Could not create graphics pipeline state", res);
         ID3D12RootSignature_Release(rootSignature);
@@ -2692,7 +2692,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         D3D12_COMMAND_LIST_TYPE_DIRECT,
         renderer->commandBuffer->commandAllocator,
         NULL,
-        &SDL_IID_ID3D12GraphicsCommandList2,
+        &D3D_IID_ID3D12GraphicsCommandList2,
         (void **)&renderer->commandBuffer->graphicsCommandList);
     if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
@@ -2721,7 +2721,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         renderer->device,
         0,
         D3D12_FENCE_FLAG_NONE,
-        &SDL_IID_ID3D12Fence,
+        &D3D_IID_ID3D12Fence,
         (void **)&renderer->commandBuffer->fence);
     if (FAILED(res)) {
         D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
@@ -2738,7 +2738,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         res = ID3D12Device_CreateDescriptorHeap(
             renderer->device,
             &heapDesc,
-            &SDL_IID_ID3D12DescriptorHeap,
+            &D3D_IID_ID3D12DescriptorHeap,
             (void **)&renderer->commandBuffer->descriptorHeap);
         if (FAILED(res)) {
             D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
@@ -2755,7 +2755,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         res = ID3D12Device_CreateDescriptorHeap(
             renderer->device,
             &samplerHeapDesc,
-            &SDL_IID_ID3D12DescriptorHeap,
+            &D3D_IID_ID3D12DescriptorHeap,
             (void **)&renderer->commandBuffer->vertexSamplerDescriptorHeap);
         if (FAILED(res)) {
             D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
@@ -2772,7 +2772,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         res = ID3D12Device_CreateDescriptorHeap(
             renderer->device,
             &samplerHeapDesc,
-            &SDL_IID_ID3D12DescriptorHeap,
+            &D3D_IID_ID3D12DescriptorHeap,
             (void **)&renderer->commandBuffer->fragmentSamplerDescriptorHeap);
         if (FAILED(res)) {
             D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
@@ -2789,7 +2789,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         res = ID3D12Device_CreateDescriptorHeap(
             renderer->device,
             &srvHeapDesc,
-            &SDL_IID_ID3D12DescriptorHeap,
+            &D3D_IID_ID3D12DescriptorHeap,
             (void **)&renderer->commandBuffer->vertexShaderResourceDescriptorHeap);
         if (FAILED(res)) {
             D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
@@ -2806,7 +2806,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
         res = ID3D12Device_CreateDescriptorHeap(
             renderer->device,
             &srvHeapDesc,
-            &SDL_IID_ID3D12DescriptorHeap,
+            &D3D_IID_ID3D12DescriptorHeap,
             (void **)&renderer->commandBuffer->fragmentShaderResourceDescriptorHeap);
         if (FAILED(res)) {
             D3D12_INTERNAL_DestroyRendererAndFree(&renderer);
