@@ -744,7 +744,7 @@ ID3D12RootSignature *D3D12_INTERNAL_CreateRootSignature(D3D12Renderer *renderer,
     return rootSignature;
 }
 
-static BOOL D3D12_INTERNAL_CreateShaderBytecode(
+static SDL_bool D3D12_INTERNAL_CreateShaderBytecode(
     D3D12Renderer *renderer,
     Uint32 stage,
     SDL_GpuShaderFormat format,
@@ -780,7 +780,7 @@ static BOOL D3D12_INTERNAL_CreateShaderBytecode(
             }
             if (blob)
                 ID3D10Blob_Release(blob);
-            return FALSE;
+            return SDL_FALSE;
         }
         if (errorBlob)
             ID3D10Blob_Release(errorBlob);
@@ -791,7 +791,7 @@ static BOOL D3D12_INTERNAL_CreateShaderBytecode(
         bytecodeSize = codeSize;
     } else {
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "Incompatible shader format for D3D12");
-        return FALSE;
+        return SDL_FALSE;
     }
 
     if (pBytecode != NULL) {
@@ -805,7 +805,7 @@ static BOOL D3D12_INTERNAL_CreateShaderBytecode(
         ID3D10Blob_Release(blob);
     }
 
-    return TRUE;
+    return SDL_TRUE;
 }
 
 SDL_GpuComputePipeline *D3D12_CreateComputePipeline(
@@ -930,7 +930,7 @@ SDL_bool D3D12_INTERNAL_ConvertDepthStencilState(SDL_GpuDepthStencilState depthS
 SDL_bool D3D12_INTERNAL_ConvertVertexInputState(SDL_GpuVertexInputState vertexInputState, D3D12_INPUT_ELEMENT_DESC *desc)
 {
     if (desc == NULL || vertexInputState.vertexAttributeCount == 0) {
-        return FALSE;
+        return SDL_FALSE;
     }
 
     for (Uint32 i = 0; i < vertexInputState.vertexAttributeCount; ++i) {
@@ -945,7 +945,7 @@ SDL_bool D3D12_INTERNAL_ConvertVertexInputState(SDL_GpuVertexInputState vertexIn
         desc[i].InstanceDataStepRate = vertexInputState.vertexBindings[attribute.binding].stepRate;
     }
 
-    return TRUE;
+    return SDL_TRUE;
 }
 
 SDL_GpuGraphicsPipeline *D3D12_CreateGraphicsPipeline(
@@ -1058,7 +1058,7 @@ SDL_GpuShader *D3D12_CreateShader(
     D3D12Shader *shader;
 
     if ((shaderCreateInfo->stage != SDL_GPU_SHADERSTAGE_VERTEX) && (shaderCreateInfo->stage != SDL_GPU_SHADERSTAGE_FRAGMENT)) {
-        SDL_assert(FALSE);
+        SDL_assert(SDL_FALSE);
     }
 
     if (!D3D12_INTERNAL_CreateShaderBytecode(
@@ -2205,7 +2205,7 @@ SDL_GpuTexture *D3D12_AcquireSwapchainTexture(
             nextWindowPtr = &(*nextWindowPtr)->nextWindow;
         *nextWindowPtr = windowData;
         windowData->nextWindow = NULL;
-        windowData->activeWindow = TRUE;
+        windowData->activeWindow = SDL_TRUE;
     }
 
     texture = windowData->renderTexture[windowData->frameCounter];
@@ -2241,7 +2241,7 @@ void D3D12_Submit(
         SDL_assert(window->activeWindow);
         D3D12WindowData *nextWindow = window->nextWindow;
         window->nextWindow = NULL;
-        window->activeWindow = FALSE;
+        window->activeWindow = SDL_FALSE;
         IDXGISwapChain3_Present(window->swapchain, 1, 0);
         window->frameCounter = IDXGISwapChain3_GetCurrentBackBufferIndex(window->swapchain);
         window = nextWindow;
@@ -2327,7 +2327,7 @@ static SDL_bool D3D12_PrepareDriver(SDL_VideoDevice *_this)
     IDXGIAdapter1 *adapter;
 
     // D3D12 support is incomplete at this time
-    return SDL_FALSE;
+    //return SDL_FALSE;
 
     /* Can we load D3D12? */
 
@@ -2501,6 +2501,8 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
     PFN_D3D12_CREATE_DEVICE D3D12CreateDeviceFunc;
     D3D12_COMMAND_QUEUE_DESC queueDesc;
 
+    SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "SDL_Gpu Driver: DirectX 12");
+
     renderer = (D3D12Renderer *)SDL_malloc(sizeof(D3D12Renderer));
     SDL_zerop(renderer);
 
@@ -2574,7 +2576,7 @@ static SDL_GpuDevice *D3D12_CreateDevice(SDL_bool debugMode, SDL_bool preferLowP
             &renderer->supportsTearing,
             sizeof(renderer->supportsTearing));
         if (FAILED(res)) {
-            renderer->supportsTearing = FALSE;
+            renderer->supportsTearing = SDL_FALSE;
         }
         IDXGIFactory5_Release(factory5);
     }
