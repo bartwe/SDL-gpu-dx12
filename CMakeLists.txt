@@ -289,7 +289,7 @@ dep_option(SDL_DUMMYAUDIO          "Support the dummy audio driver" ON "SDL_AUDI
 dep_option(SDL_DUMMYVIDEO          "Use dummy video driver" ON "SDL_VIDEO" OFF)
 dep_option(SDL_IBUS                "Enable IBus support" ON "${UNIX_SYS}" OFF)
 dep_option(SDL_OPENGL              "Include OpenGL support" ON "SDL_VIDEO;NOT IOS;NOT VISIONOS;NOT TVOS;NOT WATCHOS" OFF)
-dep_option(SDL_OPENGLES            "Include OpenGL ES support" ON "SDL_VIDEO;NOT IOS;NOT VISIONOS;NOT TVOS;NOT WATCHOS" OFF)
+dep_option(SDL_OPENGLES            "Include OpenGL ES support" ON "SDL_VIDEO;NOT VISIONOS;NOT TVOS;NOT WATCHOS" OFF)
 set_option(SDL_PTHREADS            "Use POSIX threads for multi-threading" ${SDL_PTHREADS_DEFAULT})
 dep_option(SDL_PTHREADS_SEM        "Use pthread semaphores" ON "SDL_PTHREADS" OFF)
 dep_option(SDL_OSS                 "Support the OSS audio API" ${SDL_OSS_DEFAULT} "UNIX_SYS OR RISCOS;SDL_AUDIO" OFF)
@@ -343,6 +343,7 @@ set_option(SDL_LIBUDEV             "Enable libudev support" ON)
 set_option(SDL_ASAN                "Use AddressSanitizer to detect memory errors" OFF)
 set_option(SDL_CCACHE              "Use Ccache to speed up build" OFF)
 set_option(SDL_CLANG_TIDY          "Run clang-tidy static analysis" OFF)
+set_option(SDL_GPU_DXVK            "Build SDL_Gpu with DXVK support" OFF)
 
 set(SDL_VENDOR_INFO "" CACHE STRING "Vendor name and/or version to add to SDL_REVISION")
 
@@ -412,8 +413,8 @@ if (LIBC_IS_GLIBC AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 endif()
 
 if(WINDOWS_STORE)
-  sdl_compile_definitions(PRIVATE "SDL_BUILDING_WINRT=1")
-  sdl_compile_options(PRIVATE "-ZW")
+  sdl_compile_definitions(PRIVATE "SDL_BUILDING_WINRT=1" "WINAPI_FAMILY=WINAPI_FAMILY_APP")
+  sdl_compile_options(PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/ZW>" "$<$<COMPILE_LANGUAGE:CXX>:-EHsc>")
 endif()
 
 check_linker_supports_version_file(HAVE_WL_VERSION_SCRIPT)
@@ -466,7 +467,6 @@ sdl_glob_sources(
   "${SDL3_SOURCE_DIR}/src/file/*.c"
   "${SDL3_SOURCE_DIR}/src/filesystem/*.c"
   "${SDL3_SOURCE_DIR}/src/gpu/*.c"
-  "${SDL3_SOURCE_DIR}/src/gpu/*/*.c"
   "${SDL3_SOURCE_DIR}/src/joystick/*.c"
   "${SDL3_SOURCE_DIR}/src/haptic/*.c"
   "${SDL3_SOURCE_DIR}/src/hidapi/*.c"
@@ -1679,7 +1679,7 @@ elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)
       )
     endif()
 
-    if(SDL_GPU)
+    if(SDL_GPU AND SDL_GPU_DXVK)
       if(PKG_CONFIG_FOUND)
         pkg_search_module(DXVK_NATIVE dxvk-dxgi)
         if(DXVK_NATIVE_FOUND)
@@ -1950,16 +1950,27 @@ elseif(WINDOWS)
   set(SDL_THREAD_GENERIC_COND_SUFFIX 1)
   set(SDL_THREAD_GENERIC_RWLOCK_SUFFIX 1)
   set(SDL_THREAD_WINDOWS 1)
-  sdl_sources(
-    "${SDL3_SOURCE_DIR}/src/thread/generic/SDL_syscond.c"
-    "${SDL3_SOURCE_DIR}/src/thread/generic/SDL_sysrwlock.c"
-    "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_syscond_cv.c"
-    "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_sysmutex.c"
-    "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_sysrwlock_srw.c"
-    "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_syssem.c"
-    "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_systhread.c"
-    "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_systls.c"
-  )
+  if(WINDOWS_STORE)
+    sdl_sources(
+      "${SDL3_SOURCE_DIR}/src/thread/stdcpp/SDL_syscond.cpp"
+      "${SDL3_SOURCE_DIR}/src/thread/stdcpp/SDL_sysmutex.cpp"
+      "${SDL3_SOURCE_DIR}/src/thread/stdcpp/SDL_sysrwlock.cpp"
+      "${SDL3_SOURCE_DIR}/src/thread/stdcpp/SDL_systhread.cpp"
+      "${SDL3_SOURCE_DIR}/src/thread/generic/SDL_syssem.c"
+    )
+  else()
+    sdl_sources(
+      "${SDL3_SOURCE_DIR}/src/thread/generic/SDL_syscond.c"
+      "${SDL3_SOURCE_DIR}/src/thread/generic/SDL_sysrwlock.c"
+      "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_syscond_cv.c"
+      "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_sysmutex.c"
+      "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_sysrwlock_srw.c"
+      "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_syssem.c"
+      "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_systhread.c"
+      "${SDL3_SOURCE_DIR}/src/thread/windows/SDL_systls.c"
+    )
+  endif()
+
   set(HAVE_SDL_THREADS TRUE)
 
   if(SDL_SENSOR AND HAVE_SENSORSAPI_H AND NOT WINDOWS_STORE)
@@ -2103,6 +2114,7 @@ elseif(WINDOWS)
     endif()
   endif()
 
+  enable_language(RC)
   sdl_glob_sources(SHARED "${SDL3_SOURCE_DIR}/src/core/windows/*.rc")
   if(MINGW OR CYGWIN)
     sdl_pc_link_options("-mwindows")
@@ -2895,14 +2907,17 @@ endif()
 
 if(SDL_GPU)
   if(HAVE_D3D11_H)
+    sdl_glob_sources("${SDL3_SOURCE_DIR}/src/gpu/d3d11/*.c")
     set(SDL_GPU_D3D11 1)
     set(HAVE_SDL_GPU TRUE)
   endif()
-  if(SDL_VIDEO_RENDER_D3D12)
+  if(HAVE_D3D12_H)
+    sdl_glob_sources("${SDL3_SOURCE_DIR}/src/gpu/d3d12/*.c")
     set(SDL_GPU_D3D12 1)
     set(HAVE_SDL_GPU TRUE)
   endif()
   if(SDL_VIDEO_VULKAN)
+    sdl_glob_sources("${SDL3_SOURCE_DIR}/src/gpu/vulkan/*.c")
     set(SDL_GPU_VULKAN 1)
     set(HAVE_SDL_GPU TRUE)
   endif()

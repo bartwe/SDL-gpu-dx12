@@ -32,7 +32,7 @@
 #include "SDL_hashtable.h"
 #include <SDL3/SDL_vulkan.h>
 
-#include "../SDL_gpu_driver.h"
+#include "../SDL_sysgpu.h"
 
 #define VULKAN_INTERNAL_clamp(val, min, max) SDL_max(min, SDL_min(val, max))
 
@@ -8555,6 +8555,26 @@ static void VULKAN_DispatchCompute(
         groupCountX,
         groupCountY,
         groupCountZ);
+}
+
+static void VULKAN_DispatchComputeIndirect(
+    SDL_GpuCommandBuffer *commandBuffer,
+    SDL_GpuBuffer *buffer,
+    Uint32 offsetInBytes)
+{
+    VulkanCommandBuffer *vulkanCommandBuffer = (VulkanCommandBuffer *)commandBuffer;
+    VulkanRenderer *renderer = (VulkanRenderer *)vulkanCommandBuffer->renderer;
+    VulkanBuffer *vulkanBuffer = ((VulkanBufferContainer *)buffer)->activeBufferHandle->vulkanBuffer;
+
+    VULKAN_INTERNAL_BindComputeDescriptorSets(renderer, vulkanCommandBuffer);
+
+    renderer->vkCmdDispatchIndirect(
+        vulkanCommandBuffer->commandBuffer,
+        vulkanBuffer->buffer,
+        offsetInBytes
+    );
+
+    VULKAN_INTERNAL_TrackBuffer(vulkanCommandBuffer, vulkanBuffer);
 }
 
 static void VULKAN_EndComputePass(

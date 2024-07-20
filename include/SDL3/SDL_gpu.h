@@ -187,20 +187,19 @@ typedef enum SDL_GpuTransferBufferUsage
 typedef enum SDL_GpuShaderStage
 {
     SDL_GPU_SHADERSTAGE_VERTEX,
-    SDL_GPU_SHADERSTAGE_FRAGMENT,
-    SDL_GPU_SHADERSTAGE_COMPUTE
+    SDL_GPU_SHADERSTAGE_FRAGMENT
 } SDL_GpuShaderStage;
 
 typedef enum SDL_GpuShaderFormat
 {
     SDL_GPU_SHADERFORMAT_INVALID,
+    SDL_GPU_SHADERFORMAT_SECRET,   /* NDA'd platforms */
     SDL_GPU_SHADERFORMAT_SPIRV,    /* Vulkan */
     SDL_GPU_SHADERFORMAT_HLSL,     /* D3D11, D3D12 */
     SDL_GPU_SHADERFORMAT_DXBC,     /* D3D11, D3D12 */
     SDL_GPU_SHADERFORMAT_DXIL,     /* D3D12 */
     SDL_GPU_SHADERFORMAT_MSL,      /* Metal */
     SDL_GPU_SHADERFORMAT_METALLIB, /* Metal */
-    SDL_GPU_SHADERFORMAT_SECRET    /* NDA'd platforms */
 } SDL_GpuShaderFormat;
 
 typedef enum SDL_GpuVertexElementFormat
@@ -487,6 +486,13 @@ typedef struct SDL_GpuIndexedIndirectDrawCommand
     Uint32 vertexOffset;  /* value added to vertex index before indexing into the vertex buffer */
     Uint32 firstInstance; /* ID of the first instance to draw */
 } SDL_GpuIndexedIndirectDrawCommand;
+
+typedef struct SDL_GpuIndirectDispatchCommand
+{
+    Uint32 groupCountX;
+    Uint32 groupCountY;
+    Uint32 groupCountZ;
+} SDL_GpuIndirectDispatchCommand;
 
 /* State structures */
 
@@ -1717,6 +1723,29 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuDispatchCompute(
     Uint32 groupCountX,
     Uint32 groupCountY,
     Uint32 groupCountZ);
+
+/**
+ * Dispatches compute work with parameters set from a buffer.
+ * The buffer layout should match the layout of SDL_GpuIndirectDispatchCommand.
+ * You must not call this function before binding a compute pipeline.
+ *
+ * A VERY IMPORTANT NOTE
+ * If you dispatch multiple times in a compute pass,
+ * and the dispatches write to the same resource region as each other,
+ * there is no guarantee of which order the writes will occur.
+ * If the write order matters, you MUST end the compute pass and begin another one.
+ *
+ * \param computePass a compute pass handle
+ * \param buffer a buffer containing dispatch parameters
+ * \param offsetInBytes the offset to start reading from the dispatch buffer
+ *
+ * \since This function is available since SDL 3.x.x
+ */
+extern SDL_DECLSPEC void SDLCALL SDL_GpuDispatchComputeIndirect(
+    SDL_GpuComputePass *computePass,
+    SDL_GpuBuffer *buffer,
+    Uint32 offsetInBytes
+);
 
 /**
  * Ends the current compute pass.

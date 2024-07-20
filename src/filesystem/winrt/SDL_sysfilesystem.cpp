@@ -25,8 +25,12 @@
 
 #ifdef SDL_PLATFORM_WINRT
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/* System dependent filesystem routines                                */
+
 extern "C" {
 #include "../../core/windows/SDL_windows.h"
+#include "../SDL_sysfilesystem.h"
 }
 
 #include <string>
@@ -109,13 +113,13 @@ extern "C" const char *SDL_GetWinRTFSPath(SDL_WinRT_Path pathType)
         return NULL;
     }
 
-    char *utf8Path = WIN_StringToUTF8(ucs2Path);
+    char *utf8Path = WIN_StringToUTF8W(ucs2Path);
     utf8Paths[pathType] = utf8Path;
     SDL_free(utf8Path);
     return utf8Paths[pathType].c_str();
 }
 
-extern "C" char *SDL_GetBasePath(void)
+extern "C" char *SDL_SYS_GetBasePath(void)
 {
     const char *srcPath = SDL_GetWinRTFSPath(SDL_WINRT_PATH_INSTALLED_LOCATION);
     size_t destPathLen;
@@ -136,7 +140,7 @@ extern "C" char *SDL_GetBasePath(void)
     return destPath;
 }
 
-extern "C" char *SDL_GetPrefPath(const char *org, const char *app)
+extern "C" char *SDL_SYS_GetPrefPath(const char *org, const char *app)
 {
     /* WinRT note: The 'SHGetFolderPath' API that is used in Windows 7 and
      * earlier is not available on WinRT or Windows Phone.  WinRT provides
@@ -172,12 +176,12 @@ extern "C" char *SDL_GetPrefPath(const char *org, const char *app)
     }
     SDL_wcslcpy(path, srcPath, SDL_arraysize(path));
 
-    worg = WIN_UTF8ToString(org);
+    worg = WIN_UTF8ToStringW(org);
     if (!worg) {
         return NULL;
     }
 
-    wapp = WIN_UTF8ToString(app);
+    wapp = WIN_UTF8ToStringW(app);
     if (!wapp) {
         SDL_free(worg);
         return NULL;
@@ -221,12 +225,12 @@ extern "C" char *SDL_GetPrefPath(const char *org, const char *app)
 
     SDL_wcslcat(path, L"\\", new_wpath_len + 1);
 
-    retval = WIN_StringToUTF8(path);
+    retval = WIN_StringToUTF8W(path);
 
     return retval;
 }
 
-char *SDL_GetUserFolder(SDL_Folder folder)
+char *SDL_SYS_GetUserFolder(SDL_Folder folder)
 {
     wstring wpath;
 
@@ -253,7 +257,7 @@ char *SDL_GetUserFolder(SDL_Folder folder)
 
     wpath += L"\\";
 
-    return WIN_StringToUTF8(wpath.c_str());
+    return WIN_StringToUTF8W(wpath.c_str());
 }
 
 #endif /* SDL_PLATFORM_WINRT */

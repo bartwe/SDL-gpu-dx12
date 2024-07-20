@@ -53,7 +53,7 @@ typedef struct
 
 static SDL_Surface *SW_ActivateRenderer(SDL_Renderer *renderer)
 {
-    SW_RenderData *data = (SW_RenderData *)renderer->driverdata;
+    SW_RenderData *data = (SW_RenderData *)renderer->internal;
 
     if (!data->surface) {
         data->surface = data->window;
@@ -69,7 +69,7 @@ static SDL_Surface *SW_ActivateRenderer(SDL_Renderer *renderer)
 
 static void SW_WindowEvent(SDL_Renderer *renderer, const SDL_WindowEvent *event)
 {
-    SW_RenderData *data = (SW_RenderData *)renderer->driverdata;
+    SW_RenderData *data = (SW_RenderData *)renderer->internal;
 
     if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
         data->surface = NULL;
@@ -79,7 +79,7 @@ static void SW_WindowEvent(SDL_Renderer *renderer, const SDL_WindowEvent *event)
 
 static int SW_GetOutputSize(SDL_Renderer *renderer, int *w, int *h)
 {
-    SW_RenderData *data = (SW_RenderData *)renderer->driverdata;
+    SW_RenderData *data = (SW_RenderData *)renderer->internal;
 
     if (data->surface) {
         if (w) {
@@ -107,7 +107,7 @@ static int SW_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_Pr
     if (!SDL_SurfaceValid(surface)) {
         return SDL_SetError("Cannot create surface");
     }
-    texture->driverdata = surface;
+    texture->internal = surface;
     r = (Uint8)SDL_roundf(SDL_clamp(texture->color.r, 0.0f, 1.0f) * 255.0f);
     g = (Uint8)SDL_roundf(SDL_clamp(texture->color.g, 0.0f, 1.0f) * 255.0f);
     b = (Uint8)SDL_roundf(SDL_clamp(texture->color.b, 0.0f, 1.0f) * 255.0f);
@@ -129,13 +129,15 @@ static int SW_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_Pr
 static int SW_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
                             const SDL_Rect *rect, const void *pixels, int pitch)
 {
-    SDL_Surface *surface = (SDL_Surface *)texture->driverdata;
+    SDL_Surface *surface = (SDL_Surface *)texture->internal;
     Uint8 *src, *dst;
     int row;
     size_t length;
 
     if (SDL_MUSTLOCK(surface)) {
-        SDL_LockSurface(surface);
+        if (SDL_LockSurface(surface) < 0) {
+            return -1;
+        }
     }
     src = (Uint8 *)pixels;
     dst = (Uint8 *)surface->pixels +
@@ -156,7 +158,7 @@ static int SW_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
 static int SW_LockTexture(SDL_Renderer *renderer, SDL_Texture *texture,
                           const SDL_Rect *rect, void **pixels, int *pitch)
 {
-    SDL_Surface *surface = (SDL_Surface *)texture->driverdata;
+    SDL_Surface *surface = (SDL_Surface *)texture->internal;
 
     *pixels =
         (void *)((Uint8 *)surface->pixels + rect->y * surface->pitch +
@@ -175,10 +177,10 @@ static void SW_SetTextureScaleMode(SDL_Renderer *renderer, SDL_Texture *texture,
 
 static int SW_SetRenderTarget(SDL_Renderer *renderer, SDL_Texture *texture)
 {
-    SW_RenderData *data = (SW_RenderData *)renderer->driverdata;
+    SW_RenderData *data = (SW_RenderData *)renderer->internal;
 
     if (texture) {
-        data->surface = (SDL_Surface *)texture->driverdata;
+        data->surface = (SDL_Surface *)texture->internal;
     } else {
         data->surface = data->window;
     }
@@ -317,7 +319,7 @@ static int SW_RenderCopyEx(SDL_Renderer *renderer, SDL_Surface *surface, SDL_Tex
                            const SDL_Rect *srcrect, const SDL_Rect *final_rect,
                            const double angle, const SDL_FPoint *center, const SDL_FlipMode flip, float scale_x, float scale_y)
 {
-    SDL_Surface *src = (SDL_Surface *)texture->driverdata;
+    SDL_Surface *src = (SDL_Surface *)texture->internal;
     SDL_Rect tmp_rect;
     SDL_Surface *src_clone, *src_rotated, *src_scaled;
     SDL_Surface *mask = NULL, *mask_rotated = NULL;
@@ -341,7 +343,9 @@ static int SW_RenderCopyEx(SDL_Renderer *renderer, SDL_Surface *surface, SDL_Tex
      * necessary because this code is going to access the pixel buffer directly.
      */
     if (SDL_MUSTLOCK(src)) {
-        SDL_LockSurface(src);
+        if (SDL_LockSurface(src) < 0) {
+            return -1;
+        }
     }
 
     /* Clone the source surface but use its pixel buffer directly.
@@ -624,7 +628,7 @@ static void PrepTextureForCopy(const SDL_RenderCommand *cmd, SW_DrawStateCache *
     const Uint8 a = drawstate->color.a;
     const SDL_BlendMode blend = cmd->data.draw.blend;
     SDL_Texture *texture = cmd->data.draw.texture;
-    SDL_Surface *surface = (SDL_Surface *)texture->driverdata;
+    SDL_Surface *surface = (SDL_Surface *)texture->internal;
     const SDL_bool colormod = ((r & g & b) != 0xFF);
     const SDL_bool alphamod = (a != 0xFF);
     const SDL_bool blending = ((blend == SDL_BLENDMODE_ADD) || (blend == SDL_BLENDMODE_MOD) || (blend == SDL_BLENDMODE_MUL));
@@ -812,7 +816,7 @@ static int SW_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, vo
             const SDL_Rect *srcrect = verts;
             SDL_Rect *dstrect = verts + 1;
             SDL_Texture *texture = cmd->data.draw.texture;
-            SDL_Surface *src = (SDL_Surface *)texture->driverdata;
+            SDL_Surface *src = (SDL_Surface *)texture->internal;
 
             SetDrawState(surface, &drawstate);
 
@@ -900,7 +904,7 @@ static int SW_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, vo
             SetDrawState(surface, &drawstate);
 
             if (texture) {
-                SDL_Surface *src = (SDL_Surface *)texture->driverdata;
+                SDL_Surface *src = (SDL_Surface *)texture->internal;
 
                 GeometryCopyData *ptr = (GeometryCopyData *)verts;
 
@@ -996,7 +1000,7 @@ static int SW_RenderPresent(SDL_Renderer *renderer)
 
 static void SW_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 {
-    SDL_Surface *surface = (SDL_Surface *)texture->driverdata;
+    SDL_Surface *surface = (SDL_Surface *)texture->internal;
 
     SDL_DestroySurface(surface);
 }
@@ -1004,7 +1008,7 @@ static void SW_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 static void SW_DestroyRenderer(SDL_Renderer *renderer)
 {
     SDL_Window *window = renderer->window;
-    SW_RenderData *data = (SW_RenderData *)renderer->driverdata;
+    SW_RenderData *data = (SW_RenderData *)renderer->internal;
 
     if (window) {
         SDL_DestroyWindowSurface(window);
@@ -1147,7 +1151,7 @@ int SW_CreateRendererForSurface(SDL_Renderer *renderer, SDL_Surface *surface, SD
     renderer->RenderPresent = SW_RenderPresent;
     renderer->DestroyTexture = SW_DestroyTexture;
     renderer->DestroyRenderer = SW_DestroyRenderer;
-    renderer->driverdata = data;
+    renderer->internal = data;
     SW_InvalidateCachedState(renderer);
 
     renderer->name = SW_RenderDriver.name;

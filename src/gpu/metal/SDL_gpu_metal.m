@@ -26,7 +26,7 @@
 #include <Metal/Metal.h>
 #include <QuartzCore/CoreAnimation.h>
 
-#include "../SDL_gpu_driver.h"
+#include "../SDL_sysgpu.h"
 
 /* Defines */
 
@@ -593,7 +593,7 @@ static Uint32 METAL_INTERNAL_GetVertexBufferIndex(Uint32 binding)
     return METAL_MAX_BUFFER_COUNT - 1 - binding;
 }
 
-/* FIXME: This should be moved into SDL_gpu_driver.h */
+/* FIXME: This should be moved into SDL_sysgpu.h */
 static inline Uint32 METAL_INTERNAL_NextHighestAlignment(
     Uint32 n,
     Uint32 align)
@@ -3162,6 +3162,28 @@ static void METAL_DispatchCompute(
     [metalCommandBuffer->computeEncoder
          dispatchThreadgroups:threadgroups
         threadsPerThreadgroup:threadsPerThreadgroup];
+}
+
+static void METAL_DispatchComputeIndirect(
+    SDL_GpuCommandBuffer *commandBuffer,
+    SDL_GpuBuffer *buffer,
+    Uint32 offsetInBytes)
+{
+    MetalCommandBuffer *metalCommandBuffer = (MetalCommandBuffer *)commandBuffer;
+    MetalBuffer *metalBuffer = ((MetalBufferContainer *)buffer)->activeBuffer;
+    MTLSize threadsPerThreadgroup = MTLSizeMake(
+        metalCommandBuffer->computePipeline->threadCountX,
+        metalCommandBuffer->computePipeline->threadCountY,
+        metalCommandBuffer->computePipeline->threadCountZ);
+
+    METAL_INTERNAL_BindComputeResources(metalCommandBuffer);
+
+    [metalCommandBuffer->computeEncoder
+        dispatchThreadgroupsWithIndirectBuffer:metalBuffer->handle
+                          indirectBufferOffset:offsetInBytes
+                         threadsPerThreadgroup:threadsPerThreadgroup];
+
+    METAL_INTERNAL_TrackBuffer(metalCommandBuffer, metalBuffer);
 }
 
 static void METAL_EndComputePass(

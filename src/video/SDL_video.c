@@ -611,9 +611,6 @@ int SDL_VideoInit(const char *driver_name)
     _this->gl_config.dll_handle = NULL;
     SDL_GL_ResetAttributes();
 
-    _this->current_glwin_tls = SDL_CreateTLS();
-    _this->current_glctx_tls = SDL_CreateTLS();
-
     /* Initialize the video subsystem */
     if (_this->VideoInit(_this) < 0) {
         SDL_VideoQuit();
@@ -697,7 +694,7 @@ SDL_SystemTheme SDL_GetSystemTheme(void)
     }
 }
 
-static void SDL_UpdateDesktopBounds()
+static void SDL_UpdateDesktopBounds(void)
 {
     SDL_Rect rect;
     SDL_zero(rect);
@@ -839,10 +836,10 @@ void SDL_DelVideoDisplay(SDL_DisplayID displayID, SDL_bool send_event)
     SDL_DestroyProperties(display->props);
     SDL_free(display->name);
     SDL_ResetFullscreenDisplayModes(display);
-    SDL_free(display->desktop_mode.driverdata);
-    display->desktop_mode.driverdata = NULL;
-    SDL_free(display->driverdata);
-    display->driverdata = NULL;
+    SDL_free(display->desktop_mode.internal);
+    display->desktop_mode.internal = NULL;
+    SDL_free(display->internal);
+    display->internal = NULL;
     SDL_free(display);
 
     if (display_index < (_this->num_displays - 1)) {
@@ -932,7 +929,7 @@ SDL_DisplayData *SDL_GetDisplayDriverData(SDL_DisplayID displayID)
 
     CHECK_DISPLAY_MAGIC(display, NULL);
 
-    return display->driverdata;
+    return display->internal;
 }
 
 SDL_DisplayData *SDL_GetDisplayDriverDataForWindow(SDL_Window *window)
@@ -1216,8 +1213,8 @@ void SDL_ResetFullscreenDisplayModes(SDL_VideoDisplay *display)
     int i;
 
     for (i = display->num_fullscreen_modes; i--;) {
-        SDL_free(display->fullscreen_modes[i].driverdata);
-        display->fullscreen_modes[i].driverdata = NULL;
+        SDL_free(display->fullscreen_modes[i].internal);
+        display->fullscreen_modes[i].internal = NULL;
     }
     SDL_free(display->fullscreen_modes);
     display->fullscreen_modes = NULL;
@@ -1335,8 +1332,8 @@ void SDL_SetDesktopDisplayMode(SDL_VideoDisplay *display, const SDL_DisplayMode 
 
     SDL_copyp(&last_mode, &display->desktop_mode);
 
-    if (display->desktop_mode.driverdata) {
-        SDL_free(display->desktop_mode.driverdata);
+    if (display->desktop_mode.internal) {
+        SDL_free(display->desktop_mode.internal);
     }
     SDL_copyp(&display->desktop_mode, mode);
     display->desktop_mode.displayID = display->id;
@@ -3504,15 +3501,11 @@ int SDL_SetWindowOpacity(SDL_Window *window, float opacity)
     return retval;
 }
 
-int SDL_GetWindowOpacity(SDL_Window *window, float *out_opacity)
+float SDL_GetWindowOpacity(SDL_Window *window)
 {
-    CHECK_WINDOW_MAGIC(window, -1);
+    CHECK_WINDOW_MAGIC(window, -1.0f);
 
-    if (out_opacity) {
-        *out_opacity = window->opacity;
-    }
-
-    return 0;
+    return window->opacity;
 }
 
 int SDL_SetWindowModalFor(SDL_Window *modal_window, SDL_Window *parent_window)
@@ -4798,8 +4791,8 @@ SDL_GLContext SDL_GL_CreateContext(SDL_Window *window)
     if (ctx) {
         _this->current_glwin = window;
         _this->current_glctx = ctx;
-        SDL_SetTLS(_this->current_glwin_tls, window, NULL);
-        SDL_SetTLS(_this->current_glctx_tls, ctx, NULL);
+        SDL_SetTLS(&_this->current_glwin_tls, window, NULL);
+        SDL_SetTLS(&_this->current_glctx_tls, ctx, NULL);
     }
     return ctx;
 }
@@ -4834,8 +4827,8 @@ int SDL_GL_MakeCurrent(SDL_Window *window, SDL_GLContext context)
     if (retval == 0) {
         _this->current_glwin = window;
         _this->current_glctx = context;
-        SDL_SetTLS(_this->current_glwin_tls, window, NULL);
-        SDL_SetTLS(_this->current_glctx_tls, context, NULL);
+        SDL_SetTLS(&_this->current_glwin_tls, window, NULL);
+        SDL_SetTLS(&_this->current_glctx_tls, context, NULL);
     }
     return retval;
 }
@@ -4846,7 +4839,7 @@ SDL_Window *SDL_GL_GetCurrentWindow(void)
         SDL_UninitializedVideo();
         return NULL;
     }
-    return (SDL_Window *)SDL_GetTLS(_this->current_glwin_tls);
+    return (SDL_Window *)SDL_GetTLS(&_this->current_glwin_tls);
 }
 
 SDL_GLContext SDL_GL_GetCurrentContext(void)
@@ -4855,7 +4848,7 @@ SDL_GLContext SDL_GL_GetCurrentContext(void)
         SDL_UninitializedVideo();
         return NULL;
     }
-    return (SDL_GLContext)SDL_GetTLS(_this->current_glctx_tls);
+    return (SDL_GLContext)SDL_GetTLS(&_this->current_glctx_tls);
 }
 
 SDL_EGLDisplay SDL_EGL_GetCurrentEGLDisplay(void)

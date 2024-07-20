@@ -97,7 +97,7 @@ void SDL_UnregisterApp(void)
 
 /* Returns SDL_WinRT_DeviceFamily enum */
 SDL_DECLSPEC int SDLCALL SDL_GetWinRTDeviceFamily(void);
-int SDL_GetWinRTDeviceFamily()
+int SDL_GetWinRTDeviceFamily(void)
 {
     SDL_Unsupported();
     return 0; /* SDL_WINRT_DEVICEFAMILY_UNKNOWN */
@@ -114,21 +114,21 @@ const char *SDL_GetWinRTFSPath(int pathType)
 
 #ifndef SDL_PLATFORM_ANDROID
 
-SDL_DECLSPEC void SDLCALL SDL_AndroidBackButton(void);
-void SDL_AndroidBackButton()
+SDL_DECLSPEC void SDLCALL SDL_SendAndroidBackButton(void);
+void SDL_SendAndroidBackButton(void)
 {
     SDL_Unsupported();
 }
 
 SDL_DECLSPEC void *SDLCALL SDL_GetAndroidActivity(void);
-void *SDL_GetAndroidActivity()
+void *SDL_GetAndroidActivity(void)
 {
     SDL_Unsupported();
     return NULL;
 }
 
 SDL_DECLSPEC const char *SDLCALL SDL_GetAndroidCachePath(void);
-const char* SDL_GetAndroidCachePath()
+const char* SDL_GetAndroidCachePath(void)
 {
     SDL_Unsupported();
     return NULL;
@@ -136,17 +136,17 @@ const char* SDL_GetAndroidCachePath()
 
 
 SDL_DECLSPEC const char *SDLCALL SDL_GetAndroidExternalStoragePath(void);
-const char* SDL_GetAndroidExternalStoragePath()
+const char* SDL_GetAndroidExternalStoragePath(void)
 {
     SDL_Unsupported();
     return NULL;
 }
 
-SDL_DECLSPEC int SDLCALL SDL_GetAndroidExternalStorageState(Uint32 *state);
-int SDL_GetAndroidExternalStorageState(Uint32 *state)
+SDL_DECLSPEC Uint32 SDLCALL SDL_GetAndroidExternalStorageState(void);
+Uint32 SDL_GetAndroidExternalStorageState(void)
 {
-    (void)state;
-    return SDL_Unsupported();
+    SDL_Unsupported();
+    return 0;
 }
 SDL_DECLSPEC const char *SDLCALL SDL_GetAndroidInternalStoragePath(void);
 const char *SDL_GetAndroidInternalStoragePath(void)
@@ -156,15 +156,15 @@ const char *SDL_GetAndroidInternalStoragePath(void)
 }
 
 SDL_DECLSPEC void *SDLCALL SDL_GetAndroidJNIEnv(void);
-void *SDL_GetAndroidJNIEnv()
+void *SDL_GetAndroidJNIEnv(void)
 {
     SDL_Unsupported();
     return NULL;
 }
 
-typedef void (SDLCALL *SDL_AndroidRequestPermissionCallback)(void *userdata, const char *permission, SDL_bool granted);
-SDL_DECLSPEC int SDLCALL SDL_AndroidRequestPermission(const char *permission, SDL_AndroidRequestPermissionCallback cb, void *userdata);
-int SDL_AndroidRequestPermission(const char *permission, SDL_AndroidRequestPermissionCallback cb, void *userdata)
+typedef void (SDLCALL *SDL_RequestAndroidPermissionCallback)(void *userdata, const char *permission, SDL_bool granted);
+SDL_DECLSPEC int SDLCALL SDL_RequestAndroidPermission(const char *permission, SDL_RequestAndroidPermissionCallback cb, void *userdata);
+int SDL_RequestAndroidPermission(const char *permission, SDL_RequestAndroidPermissionCallback cb, void *userdata)
 {
     (void)permission;
     (void)cb;
@@ -172,16 +172,16 @@ int SDL_AndroidRequestPermission(const char *permission, SDL_AndroidRequestPermi
     return SDL_Unsupported();
 }
 
-SDL_DECLSPEC int SDLCALL SDL_AndroidSendMessage(Uint32 command, int param);
-int SDL_AndroidSendMessage(Uint32 command, int param)
+SDL_DECLSPEC int SDLCALL SDL_SendAndroidMessage(Uint32 command, int param);
+int SDL_SendAndroidMessage(Uint32 command, int param)
 {
     (void)command;
     (void)param;
     return SDL_Unsupported();
 }
 
-SDL_DECLSPEC int SDLCALL SDL_AndroidShowToast(const char* message, int duration, int gravity, int xoffset, int yoffset);
-int SDL_AndroidShowToast(const char* message, int duration, int gravity, int xoffset, int yoffset)
+SDL_DECLSPEC int SDLCALL SDL_ShowAndroidToast(const char* message, int duration, int gravity, int xoffset, int yoffset);
+int SDL_ShowAndroidToast(const char* message, int duration, int gravity, int xoffset, int yoffset)
 {
     (void)message;
     (void)duration;
@@ -192,20 +192,20 @@ int SDL_AndroidShowToast(const char* message, int duration, int gravity, int xof
 }
 
 SDL_DECLSPEC int SDLCALL SDL_GetAndroidSDKVersion(void);
-int SDL_GetAndroidSDKVersion()
+int SDL_GetAndroidSDKVersion(void)
 {
     return SDL_Unsupported();
 }
 
 SDL_DECLSPEC SDL_bool SDLCALL SDL_IsAndroidTV(void);
-SDL_bool SDL_IsAndroidTV()
+SDL_bool SDL_IsAndroidTV(void)
 {
     SDL_Unsupported();
     return SDL_FALSE;
 }
 
 SDL_DECLSPEC SDL_bool SDLCALL SDL_IsChromebook(void);
-SDL_bool SDL_IsChromebook()
+SDL_bool SDL_IsChromebook(void)
 {
     SDL_Unsupported();
     return SDL_FALSE;
@@ -228,8 +228,9 @@ Sint32 JNI_OnLoad(void *vm, void *reserved)
 }
 #endif
 
+// !!! FIXME: this probably belongs in src/filesystem/gdk
 #if defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES)
-char *SDL_GetUserFolder(SDL_Folder folder)
+const char *SDL_GetUserFolder(SDL_Folder folder)
 {
     (void)folder;
     SDL_Unsupported();

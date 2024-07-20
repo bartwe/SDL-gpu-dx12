@@ -802,10 +802,9 @@ On Haiku OS, SDL no longer sets the current working directory to the executable'
 
 ```c
 {
-    char *path = SDL_GetBasePath();
+    const char *path = SDL_GetBasePath();
     if (path) {
         chdir(path);
-        SDL_free(path);
     }
 }
 ```
@@ -1265,6 +1264,8 @@ SDL_CreateRenderer()'s flags parameter has been removed. See specific flags belo
 SDL_CreateWindowAndRenderer() now takes the window title as the first parameter.
 
 SDL_GetRendererInfo() has been removed. The name of a renderer can be retrieved using SDL_GetRendererName(), and the other information is available as properties on the renderer.
+
+Textures are created with SDL_SCALEMODE_LINEAR by default, and use SDL_BLENDMODE_BLEND by default if they are created with a format that has an alpha channel.
 
 SDL_QueryTexture() has been removed. The properties of the texture can be queried using SDL_PROP_TEXTURE_FORMAT_NUMBER, SDL_PROP_TEXTURE_ACCESS_NUMBER, SDL_PROP_TEXTURE_WIDTH_NUMBER, and SDL_PROP_TEXTURE_HEIGHT_NUMBER. A function SDL_GetTextureSize() has been added to get the size of the texture as floating point values.
 
@@ -1748,12 +1749,11 @@ The following symbols have been renamed:
 
 SDL_WindowsMessageHook has changed signatures so the message may be modified and it can block further message processing.
 
-SDL_GetAndroidExternalStorageState() takes the state as an output parameter and returns 0 if the function succeeds or a negative error code if there was an error.
-
-SDL_AndroidRequestPermission is no longer a blocking call; the caller now provides a callback function that fires when a response is available.
+SDL_RequestAndroidPermission is no longer a blocking call; the caller now provides a callback function that fires when a response is available.
 
 SDL_iPhoneSetAnimationCallback() and SDL_iPhoneSetEventPump() have been renamed to SDL_SetiOSAnimationCallback() and SDL_SetiOSEventPump(), respectively. SDL2 has had macros to provide this new name with the old symbol since the introduction of the iPad, but now the correctly-named symbol is the only option.
 
+SDL_GetDXGIOutputInfo() now returns the standard int error code.
 
 The following functions have been removed:
 * SDL_RenderGetD3D11Device() - replaced with the "SDL.renderer.d3d11.device" property
@@ -1762,11 +1762,17 @@ The following functions have been removed:
 * SDL_GetWinRTFSPathUNICODE() - Use SDL_GetWinRTFSPath() and SDL_iconv_string to convert from UTF-8 to UTF-16.
 
 The following functions have been renamed:
+* SDL_AndroidBackButton() => SDL_SendAndroidBackButton()
 * SDL_AndroidGetActivity() => SDL_GetAndroidActivity()
 * SDL_AndroidGetExternalStoragePath() => SDL_GetAndroidExternalStoragePath()
 * SDL_AndroidGetExternalStorageState() => SDL_GetAndroidExternalStorageState()
 * SDL_AndroidGetInternalStoragePath() => SDL_GetAndroidInternalStoragePath()
 * SDL_AndroidGetJNIEnv() => SDL_GetAndroidJNIEnv()
+* SDL_AndroidRequestPermission() => SDL_RequestAndroidPermission()
+* SDL_AndroidRequestPermissionCallback() => SDL_RequestAndroidPermissionCallback()
+* SDL_AndroidSendMessage() => SDL_SendAndroidMessage()
+* SDL_AndroidShowToast() => SDL_ShowAndroidToast()
+* SDL_DXGIGetOutputInfo() => SDL_GetDXGIOutputInfo()
 * SDL_Direct3D9GetAdapterIndex() => SDL_GetDirect3D9AdapterIndex()
 * SDL_GDKGetDefaultUser() => SDL_GetGDKDefaultUser()
 * SDL_GDKGetTaskQueue() => SDL_GetGDKTaskQueue()
@@ -1879,12 +1885,16 @@ SDL_CreateThreadWithStackSize has been replaced with SDL_CreateThreadWithPropert
 
 SDL_CreateThread and SDL_CreateThreadWithProperties now take beginthread/endthread function pointers on all platforms (ignoring them on most), and have been replaced with macros that hide this detail on all platforms. This works the same as before at the source code level, but the actual function signature that is called in SDL has changed. The library's exported symbol is SDL_CreateThreadRuntime, and looking for "SDL_CreateThread" in the DLL/Shared Library/Dylib will fail. You should not call this directly, but instead always use the macro!
 
+SDL_GetTLS() and SDL_SetTLS() take a pointer to a TLS ID, and will automatically initialize it in a thread-safe way as needed.
+
 The following functions have been renamed:
 * SDL_TLSCleanup() => SDL_CleanupTLS()
-* SDL_TLSCreate() => SDL_CreateTLS()
 * SDL_TLSGet() => SDL_GetTLS()
 * SDL_TLSSet() => SDL_SetTLS()
 * SDL_ThreadID() => SDL_GetCurrentThreadID()
+
+The following functions have been removed:
+* SDL_TLSCreate() - TLS IDs are automatically allocated as needed.
 
 The following symbols have been renamed:
 * SDL_threadID => SDL_ThreadID
@@ -2043,8 +2053,9 @@ SDL_GL_GetDrawableSize() has been removed. SDL_GetWindowSizeInPixels() can be us
 
 The SDL_WINDOW_TOOLTIP and SDL_WINDOW_POPUP_MENU window flags are now supported on Windows, Mac (Cocoa), X11, and Wayland. Creating windows with these flags must happen via the `SDL_CreatePopupWindow()` function. This function requires passing in the handle to a valid parent window for the popup, and the popup window is positioned relative to the parent.
 
-
 SDL_WindowFlags is used instead of Uint32 for API functions that refer to window flags, and has been extended to 64 bits.
+
+SDL_GetWindowOpacity() directly returns the opacity instead of using an out parameter.
 
 The following functions have been renamed:
 * SDL_GL_DeleteContext() => SDL_GL_DestroyContext()

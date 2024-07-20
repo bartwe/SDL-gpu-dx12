@@ -37,10 +37,6 @@
 #define SDL_AddTimerNS SDL_AddTimerNS_REAL
 #define SDL_AddVulkanRenderSemaphores SDL_AddVulkanRenderSemaphores_REAL
 #define SDL_AllocateEventMemory SDL_AllocateEventMemory_REAL
-#define SDL_AndroidBackButton SDL_AndroidBackButton_REAL
-#define SDL_AndroidRequestPermission SDL_AndroidRequestPermission_REAL
-#define SDL_AndroidSendMessage SDL_AndroidSendMessage_REAL
-#define SDL_AndroidShowToast SDL_AndroidShowToast_REAL
 #define SDL_AtomicAdd SDL_AtomicAdd_REAL
 #define SDL_AtomicCompareAndSwap SDL_AtomicCompareAndSwap_REAL
 #define SDL_AtomicCompareAndSwapPointer SDL_AtomicCompareAndSwapPointer_REAL
@@ -64,6 +60,7 @@
 #define SDL_ClearComposition SDL_ClearComposition_REAL
 #define SDL_ClearError SDL_ClearError_REAL
 #define SDL_ClearProperty SDL_ClearProperty_REAL
+#define SDL_ClearSurface SDL_ClearSurface_REAL
 #define SDL_CloseAudioDevice SDL_CloseAudioDevice_REAL
 #define SDL_CloseCamera SDL_CloseCamera_REAL
 #define SDL_CloseGamepad SDL_CloseGamepad_REAL
@@ -100,7 +97,6 @@
 #define SDL_CreateSurfaceFrom SDL_CreateSurfaceFrom_REAL
 #define SDL_CreateSurfacePalette SDL_CreateSurfacePalette_REAL
 #define SDL_CreateSystemCursor SDL_CreateSystemCursor_REAL
-#define SDL_CreateTLS SDL_CreateTLS_REAL
 #define SDL_CreateTexture SDL_CreateTexture_REAL
 #define SDL_CreateTextureFromSurface SDL_CreateTextureFromSurface_REAL
 #define SDL_CreateTextureWithProperties SDL_CreateTextureWithProperties_REAL
@@ -110,7 +106,6 @@
 #define SDL_CreateWindowAndRenderer SDL_CreateWindowAndRenderer_REAL
 #define SDL_CreateWindowWithProperties SDL_CreateWindowWithProperties_REAL
 #define SDL_CursorVisible SDL_CursorVisible_REAL
-#define SDL_DXGIGetOutputInfo   SDL_DXGIGetOutputInfo_REAL
 #define SDL_DateTimeToTime SDL_DateTimeToTime_REAL
 #define SDL_DelEventWatch SDL_DelEventWatch_REAL
 #define SDL_DelHintCallback SDL_DelHintCallback_REAL
@@ -154,6 +149,7 @@
 #define SDL_FlushEvent SDL_FlushEvent_REAL
 #define SDL_FlushEvents SDL_FlushEvents_REAL
 #define SDL_FlushRenderer SDL_FlushRenderer_REAL
+#define SDL_FreeEventMemory SDL_FreeEventMemory_REAL
 #define SDL_GDKSuspendComplete SDL_GDKSuspendComplete_REAL
 #define SDL_GL_CreateContext SDL_GL_CreateContext_REAL
 #define SDL_GL_DestroyContext SDL_GL_DestroyContext_REAL
@@ -229,6 +225,7 @@
 #define SDL_GetCurrentTime SDL_GetCurrentTime_REAL
 #define SDL_GetCurrentVideoDriver SDL_GetCurrentVideoDriver_REAL
 #define SDL_GetCursor SDL_GetCursor_REAL
+#define SDL_GetDXGIOutputInfo   SDL_GetDXGIOutputInfo_REAL
 #define SDL_GetDateTimeLocalePreferences SDL_GetDateTimeLocalePreferences_REAL
 #define SDL_GetDayOfWeek SDL_GetDayOfWeek_REAL
 #define SDL_GetDayOfYear SDL_GetDayOfYear_REAL
@@ -639,6 +636,7 @@
 #define SDL_PollEvent SDL_PollEvent_REAL
 #define SDL_PostSemaphore SDL_PostSemaphore_REAL
 #define SDL_PremultiplyAlpha SDL_PremultiplyAlpha_REAL
+#define SDL_PremultiplySurfaceAlpha SDL_PremultiplySurfaceAlpha_REAL
 #define SDL_PumpEvents SDL_PumpEvents_REAL
 #define SDL_PushEvent SDL_PushEvent_REAL
 #define SDL_PutAudioStreamData SDL_PutAudioStreamData_REAL
@@ -655,6 +653,7 @@
 #define SDL_ReadS8 SDL_ReadS8_REAL
 #define SDL_ReadStorageFile SDL_ReadStorageFile_REAL
 #define SDL_ReadSurfacePixel SDL_ReadSurfacePixel_REAL
+#define SDL_ReadSurfacePixelFloat SDL_ReadSurfacePixelFloat_REAL
 #define SDL_ReadU16BE SDL_ReadU16BE_REAL
 #define SDL_ReadU16LE SDL_ReadU16LE_REAL
 #define SDL_ReadU32BE SDL_ReadU32BE_REAL
@@ -691,6 +690,7 @@
 #define SDL_RenderTextureRotated SDL_RenderTextureRotated_REAL
 #define SDL_RenderViewportSet SDL_RenderViewportSet_REAL
 #define SDL_ReportAssertion SDL_ReportAssertion_REAL
+#define SDL_RequestAndroidPermission SDL_RequestAndroidPermission_REAL
 #define SDL_ResetAssertionReport SDL_ResetAssertionReport_REAL
 #define SDL_ResetHint SDL_ResetHint_REAL
 #define SDL_ResetHints SDL_ResetHints_REAL
@@ -711,6 +711,8 @@
 #define SDL_ScreenKeyboardShown SDL_ScreenKeyboardShown_REAL
 #define SDL_ScreenSaverEnabled SDL_ScreenSaverEnabled_REAL
 #define SDL_SeekIO SDL_SeekIO_REAL
+#define SDL_SendAndroidBackButton SDL_SendAndroidBackButton_REAL
+#define SDL_SendAndroidMessage SDL_SendAndroidMessage_REAL
 #define SDL_SendGamepadEffect SDL_SendGamepadEffect_REAL
 #define SDL_SendJoystickEffect SDL_SendJoystickEffect_REAL
 #define SDL_SendJoystickVirtualSensorData SDL_SendJoystickVirtualSensorData_REAL
@@ -817,6 +819,7 @@
 #define SDL_SetX11EventHook SDL_SetX11EventHook_REAL
 #define SDL_SetiOSAnimationCallback SDL_SetiOSAnimationCallback_REAL
 #define SDL_SetiOSEventPump SDL_SetiOSEventPump_REAL
+#define SDL_ShowAndroidToast SDL_ShowAndroidToast_REAL
 #define SDL_ShowCursor SDL_ShowCursor_REAL
 #define SDL_ShowMessageBox SDL_ShowMessageBox_REAL
 #define SDL_ShowOpenFileDialog SDL_ShowOpenFileDialog_REAL
@@ -1120,6 +1123,7 @@
 #define SDL_GpuBindComputeStorageBuffers SDL_GpuBindComputeStorageBuffers_REAL
 #define SDL_GpuPushComputeUniformData SDL_GpuPushComputeUniformData_REAL
 #define SDL_GpuDispatchCompute SDL_GpuDispatchCompute_REAL
+#define SDL_GpuDispatchComputeIndirect SDL_GpuDispatchComputeIndirect_REAL
 #define SDL_GpuEndComputePass SDL_GpuEndComputePass_REAL
 #define SDL_GpuMapTransferBuffer SDL_GpuMapTransferBuffer_REAL
 #define SDL_GpuUnmapTransferBuffer SDL_GpuUnmapTransferBuffer_REAL

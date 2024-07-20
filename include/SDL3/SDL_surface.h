@@ -61,7 +61,7 @@ typedef Uint32 SDL_SurfaceFlags;
  *
  * \since This macro is available since SDL 3.0.0.
  */
-#define SDL_MUSTLOCK(S) (((S)->flags & (SDL_SURFACE_LOCK_NEEDED | SDL_SURFACE_LOCKED)) == SDL_SURFACE_LOCK_NEEDED)
+#define SDL_MUSTLOCK(S) ((((S)->flags & SDL_SURFACE_LOCK_NEEDED)) == SDL_SURFACE_LOCK_NEEDED)
 
 /**
  * The scaling mode.
@@ -742,7 +742,7 @@ extern SDL_DECLSPEC SDL_Surface *SDLCALL SDL_ConvertSurface(SDL_Surface *surface
  * \sa SDL_ConvertSurface
  * \sa SDL_DestroySurface
  */
-extern SDL_DECLSPEC SDL_Surface *SDLCALL SDL_ConvertSurfaceAndColorspace(SDL_Surface *surface, SDL_PixelFormat format, const SDL_Palette *palette, SDL_Colorspace colorspace, SDL_PropertiesID props);
+extern SDL_DECLSPEC SDL_Surface *SDLCALL SDL_ConvertSurfaceAndColorspace(SDL_Surface *surface, SDL_PixelFormat format, SDL_Palette *palette, SDL_Colorspace colorspace, SDL_PropertiesID props);
 
 /**
  * Copy a block of pixels of one format to another format.
@@ -798,8 +798,6 @@ extern SDL_DECLSPEC int SDLCALL SDL_ConvertPixelsAndColorspace(int width, int he
  *
  * This is safe to use with src == dst, but not for other overlapping areas.
  *
- * This function is currently only implemented for SDL_PIXELFORMAT_ARGB8888.
- *
  * \param width the width of the block to convert, in pixels.
  * \param height the height of the block to convert, in pixels.
  * \param src_format an SDL_PixelFormat value of the `src` pixels format.
@@ -808,12 +806,49 @@ extern SDL_DECLSPEC int SDLCALL SDL_ConvertPixelsAndColorspace(int width, int he
  * \param dst_format an SDL_PixelFormat value of the `dst` pixels format.
  * \param dst a pointer to be filled in with premultiplied pixel data.
  * \param dst_pitch the pitch of the destination pixels, in bytes.
+ * \param linear SDL_TRUE to convert from sRGB to linear space for the alpha
+ *               multiplication, SDL_FALSE to do multiplication in sRGB space.
  * \returns 0 on success or a negative error code on failure; call
  *          SDL_GetError() for more information.
  *
  * \since This function is available since SDL 3.0.0.
  */
-extern SDL_DECLSPEC int SDLCALL SDL_PremultiplyAlpha(int width, int height, SDL_PixelFormat src_format, const void *src, int src_pitch, SDL_PixelFormat dst_format, void *dst, int dst_pitch);
+extern SDL_DECLSPEC int SDLCALL SDL_PremultiplyAlpha(int width, int height, SDL_PixelFormat src_format, const void *src, int src_pitch, SDL_PixelFormat dst_format, void *dst, int dst_pitch, SDL_bool linear);
+
+/**
+ * Premultiply the alpha in a surface.
+ *
+ * This is safe to use with src == dst, but not for other overlapping areas.
+ *
+ * \param surface the surface to modify.
+ * \param linear SDL_TRUE to convert from sRGB to linear space for the alpha
+ *               multiplication, SDL_FALSE to do multiplication in sRGB space.
+ * \returns 0 on success or a negative error code on failure; call
+ *          SDL_GetError() for more information.
+ *
+ * \since This function is available since SDL 3.0.0.
+ */
+extern SDL_DECLSPEC int SDLCALL SDL_PremultiplySurfaceAlpha(SDL_Surface *surface, SDL_bool linear);
+
+/**
+ * Clear a surface with a specific color, with floating point precision.
+ *
+ * This function handles all surface formats, and ignores any clip rectangle.
+ *
+ * If the surface is YUV, the color is assumed to be in the sRGB colorspace,
+ * otherwise the color is assumed to be in the colorspace of the suface.
+ *
+ * \param surface the SDL_Surface to clear.
+ * \param r the red component of the pixel, normally in the range 0-1.
+ * \param g the green component of the pixel, normally in the range 0-1.
+ * \param b the blue component of the pixel, normally in the range 0-1.
+ * \param a the alpha component of the pixel, normally in the range 0-1.
+ * \returns 0 on success or a negative error code on failure; call
+ *          SDL_GetError() for more information.
+ *
+ * \since This function is available since SDL 3.0.0.
+ */
+extern SDL_DECLSPEC int SDLCALL SDL_ClearSurface(SDL_Surface *surface, float r, float g, float b, float a);
 
 /**
  * Perform a fast fill of a rectangle with a specific color.
@@ -1124,6 +1159,30 @@ extern SDL_DECLSPEC Uint32 SDLCALL SDL_MapSurfaceRGBA(SDL_Surface *surface, Uint
  * \since This function is available since SDL 3.0.0.
  */
 extern SDL_DECLSPEC int SDLCALL SDL_ReadSurfacePixel(SDL_Surface *surface, int x, int y, Uint8 *r, Uint8 *g, Uint8 *b, Uint8 *a);
+
+/**
+ * Retrieves a single pixel from a surface.
+ *
+ * This function prioritizes correctness over speed: it is suitable for unit
+ * tests, but is not intended for use in a game engine.
+ *
+ * \param surface the surface to read.
+ * \param x the horizontal coordinate, 0 <= x < width.
+ * \param y the vertical coordinate, 0 <= y < height.
+ * \param r a pointer filled in with the red channel, normally in the range
+ *          0-1, or NULL to ignore this channel.
+ * \param g a pointer filled in with the green channel, normally in the range
+ *          0-1, or NULL to ignore this channel.
+ * \param b a pointer filled in with the blue channel, normally in the range
+ *          0-1, or NULL to ignore this channel.
+ * \param a a pointer filled in with the alpha channel, normally in the range
+ *          0-1, or NULL to ignore this channel.
+ * \returns 0 on success or a negative error code on failure; call
+ *          SDL_GetError() for more information.
+ *
+ * \since This function is available since SDL 3.0.0.
+ */
+extern SDL_DECLSPEC int SDLCALL SDL_ReadSurfacePixelFloat(SDL_Surface *surface, int x, int y, float *r, float *g, float *b, float *a);
 
 /* Ends C function definitions when using C++ */
 #ifdef __cplusplus

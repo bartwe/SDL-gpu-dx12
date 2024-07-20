@@ -1266,7 +1266,7 @@ SDL_bool SDLTest_CommonInit(SDLTest_CommonState *state)
                 SDL_Log("D3D9 Adapter Index: %d", adapterIndex);
 
                 /* Print the DXGI adapter and output indices */
-                SDL_DXGIGetOutputInfo(displayID, &adapterIndex, &outputIndex);
+                SDL_GetDXGIOutputInfo(displayID, &adapterIndex, &outputIndex);
                 SDL_Log("DXGI Adapter Index: %d  Output Index: %d", adapterIndex, outputIndex);
 #endif
             }
@@ -2216,15 +2216,13 @@ int SDLTest_CommonEventMainCallbacks(SDLTest_CommonState *state, const SDL_Event
                 /* Ctrl-O (or Ctrl-Shift-O) changes window opacity. */
                 SDL_Window *window = SDL_GetWindowFromID(event->key.windowID);
                 if (window) {
-                    float opacity;
-                    if (SDL_GetWindowOpacity(window, &opacity) == 0) {
-                        if (withShift) {
-                            opacity += 0.20f;
-                        } else {
-                            opacity -= 0.20f;
-                        }
-                        SDL_SetWindowOpacity(window, opacity);
+                    float opacity = SDL_GetWindowOpacity(window);
+                    if (withShift) {
+                        opacity += 0.20f;
+                    } else {
+                        opacity -= 0.20f;
                     }
+                    SDL_SetWindowOpacity(window, opacity);
                 }
             }
             break;
@@ -2266,13 +2264,12 @@ int SDLTest_CommonEventMainCallbacks(SDLTest_CommonState *state, const SDL_Event
         case SDLK_V:
             if (withAlt) {
                 /* Alt-V paste awesome text from the primary selection! */
-                char *text = SDL_GetPrimarySelectionText();
+                const char *text = SDL_GetPrimarySelectionText();
                 if (*text) {
                     SDL_Log("Primary selection: %s\n", text);
                 } else {
                     SDL_Log("Primary selection is empty\n");
                 }
-                SDL_free(text);
 
             } else if (withControl) {
                 if (withShift) {
@@ -2280,13 +2277,12 @@ int SDLTest_CommonEventMainCallbacks(SDLTest_CommonState *state, const SDL_Event
                     SDLTest_PasteScreenShot();
                 } else {
                     /* Ctrl-V paste awesome text! */
-                    char *text = SDL_GetClipboardText();
+                    const char *text = SDL_GetClipboardText();
                     if (*text) {
                         SDL_Log("Clipboard: %s\n", text);
                     } else {
                         SDL_Log("Clipboard is empty\n");
                     }
-                    SDL_free(text);
                 }
             }
             break;

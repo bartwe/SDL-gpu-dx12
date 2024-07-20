@@ -34,7 +34,7 @@
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
 
-#include "../SDL_gpu_driver.h"
+#include "../SDL_sysgpu.h"
 
 /* __stdcall declaration, largely taken from vkd3d_windows.h */
 #ifdef _WIN32
@@ -133,6 +133,8 @@ static const GUID D3D_IID_DXGI_DEBUG_ALL = { 0xe48ae283, 0xda80, 0x490b, { 0x87,
 #define D3DCOMPILE_FUNC               "D3DCompile"
 #define DXGI_GET_DEBUG_INTERFACE_FUNC "DXGIGetDebugInterface"
 #define WINDOW_PROPERTY_DATA          "SDL_GpuD3D11WindowPropertyData"
+
+#define SDL_GPU_SHADERSTAGE_COMPUTE 2
 
 #ifdef _WIN32
 #define HRESULT_FMT "(0x%08lX)"
@@ -4559,6 +4561,24 @@ static void D3D11_DispatchCompute(
         groupCountX,
         groupCountY,
         groupCountZ);
+}
+
+static void D3D11_DispatchComputeIndirect(
+    SDL_GpuCommandBuffer *commandBuffer,
+    SDL_GpuBuffer *buffer,
+    Uint32 offsetInBytes)
+{
+    D3D11CommandBuffer *d3d11CommandBuffer = (D3D11CommandBuffer *)commandBuffer;
+    D3D11Buffer *d3d11Buffer = ((D3D11BufferContainer *)buffer)->activeBuffer;
+
+    D3D11_INTERNAL_BindComputeResources(d3d11CommandBuffer);
+
+    ID3D11DeviceContext_DispatchIndirect(
+        d3d11CommandBuffer->context,
+        d3d11Buffer->handle,
+        offsetInBytes);
+
+    D3D11_INTERNAL_TrackBuffer(d3d11CommandBuffer, d3d11Buffer);
 }
 
 static void D3D11_EndComputePass(

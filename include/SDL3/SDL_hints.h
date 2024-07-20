@@ -2962,6 +2962,7 @@ extern "C" {
  * This hint is currently supported on the following drivers:
  *
  * - Raspberry Pi (raspberrypi)
+ * - Wayland (wayland)
  *
  * This hint should be set before SDL is initialized.
  *
