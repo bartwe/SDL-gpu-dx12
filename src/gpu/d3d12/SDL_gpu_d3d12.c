@@ -1931,8 +1931,8 @@ static SDL_bool D3D12_SupportsPresentMode(
     SDL_Window *window,
     SDL_GpuPresentMode presentMode)
 {
-    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
-    (void)window; /* used by other backends */
+    (void)driverData;
+    (void)window;
 
     SDL_bool result = SDL_FALSE;
     switch (presentMode) {
@@ -2253,8 +2253,9 @@ static void D3D12_UnclaimWindow(
 static void D3D12_Wait(
     SDL_GpuRenderer *driverData)
 {
-    D3D12Renderer *renderer = (D3D12Renderer *)driverData;
-    D3D12CommandBuffer *commandBuffer = renderer->commandBuffer;
+    //D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+    //D3D12CommandBuffer *commandBuffer = renderer->commandBuffer;
+    (void)driverData;
 
     // TODO: Wait for all submitted command lists to complete.
 
