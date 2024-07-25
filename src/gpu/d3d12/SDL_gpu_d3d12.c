@@ -1090,8 +1090,58 @@ SDL_GpuBuffer *D3D12_CreateBuffer(
     SDL_GpuBufferUsageFlags usageFlags,
     Uint32 sizeInBytes)
 {
-    SDL_assert(SDL_FALSE);
-    return NULL;
+   D3D12Renderer* renderer = (D3D12Renderer*)driverData;
+    D3D12BufferContainer* container;
+    D3D12Buffer* buffer;
+    D3D12_RESOURCE_DESC resourceDesc = {};
+
+    resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    resourceDesc.Width = sizeInBytes;
+    resourceDesc.Height = 1;
+    resourceDesc.DepthOrArraySize = 1;
+    resourceDesc.MipLevels = 1;
+    resourceDesc.SampleDesc.Count = 1;
+    resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    if (usageFlags & SDL_GPU_BUFFERUSAGE_VERTEX_BIT) {
+        resourceDesc.Flags |= D3D12_RESOURCE_FLAG_NONE; // Vertex buffer flag
+    }
+    if (usageFlags & SDL_GPU_BUFFERUSAGE_INDEX_BIT) {
+        resourceDesc.Flags |= D3D12_RESOURCE_FLAG_NONE; // Index buffer flag
+    }
+    if (usageFlags & SDL_GPU_BUFFERUSAGE_INDIRECT_BIT) {
+        resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    }
+
+    if (usageFlags & (SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ_BIT |
+                      SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ_BIT |
+                      SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE_BIT)) {
+        resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    }
+
+    buffer = D3D12_INTERNAL_CreateBuffer(
+        renderer,
+        &resourceDesc,
+        sizeInBytes);
+
+    if (buffer == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create buffer!");
+        return NULL;
+    }
+
+    container = (D3D12BufferContainer*)SDL_malloc(sizeof(D3D12BufferContainer));
+    SDL_zerop(container);
+    container->activeBuffer = buffer;
+    container->bufferCapacity = 1;
+    container->bufferCount = 1;
+    container->buffers = ( D3D12Buffer ** ) SDL_malloc(
+        container->bufferCapacity * sizeof(D3D12Buffer*));
+    container->buffers[0] = container->activeBuffer;
+    container->resourceDesc = resourceDesc;
+    container->debugName = NULL;
+
+    return (SDL_GpuBuffer*)container;
 }
 
 SDL_GpuTransferBuffer *D3D12_CreateTransferBuffer(
