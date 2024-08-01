@@ -2399,7 +2399,6 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
     D3D12_RESOURCE_DESC desc;
     D3D12_HEAP_FLAGS heapFlags = 0;
     D3D12_RESOURCE_FLAGS resourceFlags = 0;
-    D3D12_RESOURCE_STATES initialState;
     HRESULT res;
 
     if (usageFlags & SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE_BIT) {
@@ -2415,40 +2414,21 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
         heapProperties.MemoryPoolPreference = renderer->UMA ? D3D12_MEMORY_POOL_L0 : D3D12_MEMORY_POOL_L1;
         heapFlags = D3D12_HEAP_FLAG_NONE;
 
-        if (usageFlags & SDL_GPU_BUFFERUSAGE_VERTEX_BIT) {
-            initialState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
-        } else if (usageFlags & SDL_GPU_BUFFERUSAGE_INDEX_BIT) {
-            initialState = D3D12_RESOURCE_STATE_INDEX_BUFFER;
-        } else if (usageFlags & SDL_GPU_BUFFERUSAGE_INDIRECT_BIT) {
-            initialState = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-        } else if (usageFlags & SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ_BIT) {
-            initialState = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
-        } else if (usageFlags & SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ_BIT) {
-            initialState = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
-        } else if (usageFlags & SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE_BIT) {
-            initialState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-        } else {
-            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Creating GPU buffer with no usage flags is invalid!");
-            return NULL;
-        }
     } else if (type == D3D12_BUFFER_TYPE_UPLOAD) {
         heapProperties.Type = D3D12_HEAP_TYPE_CUSTOM;                           /* FIXME: should we just use HEAP_TYPE_UPLOAD? */
         heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE; /* FIXME: is this right? */
         heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
         heapFlags = D3D12_HEAP_FLAG_NONE;
-        initialState = D3D12_RESOURCE_STATE_GENERIC_READ;
     } else if (type == D3D12_BUFFER_TYPE_DOWNLOAD) {
         heapProperties.Type = D3D12_HEAP_TYPE_READBACK; /* FIXME: is this right? */
         heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
         heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
         heapFlags = D3D12_HEAP_FLAG_NONE;
-        initialState = D3D12_RESOURCE_STATE_COPY_DEST;
     } else if (type == D3D12_BUFFER_TYPE_UNIFORM) {
         heapProperties.Type = D3D12_HEAP_TYPE_CUSTOM; /* FIXME: should we just use HEAP_TYPE_UPLOAD? */
         heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE;
         heapProperties.MemoryPoolPreference = renderer->UMA ? D3D12_MEMORY_POOL_L0 : D3D12_MEMORY_POOL_L1;
         heapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
-        initialState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
     } else {
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "Unrecognized buffer type!");
         return NULL;
@@ -2471,7 +2451,7 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
         &heapProperties,
         heapFlags,
         &desc,
-        initialState,
+        D3D12_RESOURCE_STATE_COMMON,
         NULL,
         &D3D_IID_ID3D12Resource,
         (void **)&handle);
@@ -2718,6 +2698,7 @@ static void D3D12_ReleaseGraphicsPipeline(
     SDL_GpuRenderer *driverData,
     SDL_GpuGraphicsPipeline *graphicsPipeline)
 {
+    D3D12_Wait(driverData);
     D3D12GraphicsPipeline *pipeline = (D3D12GraphicsPipeline *)graphicsPipeline;
     if (pipeline->pipelineState) {
         ID3D12PipelineState_Release(pipeline->pipelineState);
