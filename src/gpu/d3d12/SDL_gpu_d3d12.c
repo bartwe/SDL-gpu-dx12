@@ -4248,6 +4248,7 @@ static void D3D12_UnclaimWindow(
             D3D12_ReleaseFence(
                 driverData,
                 (SDL_GpuFence *)windowData->inFlightFences[i]);
+            windowData->inFlightFences[i] = NULL;
         }
     }
 
@@ -4372,12 +4373,6 @@ static void D3D12_INTERNAL_AllocateCommandBuffer(
         return;
     }
 
-    renderer->availableCommandBufferCapacity += 1;
-
-    renderer->availableCommandBuffers = SDL_realloc(
-        renderer->availableCommandBuffers,
-        sizeof(D3D12CommandBuffer *) * renderer->availableCommandBufferCapacity);
-
     commandBuffer = SDL_malloc(sizeof(D3D12CommandBuffer));
     commandBuffer->renderer = renderer;
     commandBuffer->commandAllocator = commandAllocator;
@@ -4407,6 +4402,10 @@ static void D3D12_INTERNAL_AllocateCommandBuffer(
         commandBuffer->usedUniformBufferCapacity * sizeof(D3D12UniformBuffer *));
 
     /* Add to inactive command buffer array */
+    renderer->availableCommandBufferCapacity += 1;
+    renderer->availableCommandBuffers = SDL_realloc(
+        renderer->availableCommandBuffers,
+        sizeof(D3D12CommandBuffer *) * renderer->availableCommandBufferCapacity);
     renderer->availableCommandBuffers[renderer->availableCommandBufferCount] = commandBuffer;
     renderer->availableCommandBufferCount += 1;
 }
@@ -4711,10 +4710,11 @@ static void D3D12_Submit(
     res = ID3D12GraphicsCommandList_Close(d3d12CommandBuffer->graphicsCommandList);
     ERROR_CHECK("Failed to close command list!");
 
-    ID3D12GraphicsCommandList_QueryInterface(
+    res = ID3D12GraphicsCommandList_QueryInterface(
         d3d12CommandBuffer->graphicsCommandList,
         &D3D_IID_ID3D12CommandList,
         (void **)&commandLists[0]);
+    ERROR_CHECK("Failed to convert command list!");
 
     /* Submit the command list to the queue */
     ID3D12CommandQueue_ExecuteCommandLists(
