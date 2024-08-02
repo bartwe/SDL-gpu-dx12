@@ -2698,7 +2698,6 @@ static void D3D12_ReleaseGraphicsPipeline(
     SDL_GpuRenderer *driverData,
     SDL_GpuGraphicsPipeline *graphicsPipeline)
 {
-    D3D12_Wait(driverData);
     D3D12GraphicsPipeline *pipeline = (D3D12GraphicsPipeline *)graphicsPipeline;
     if (pipeline->pipelineState) {
         ID3D12PipelineState_Release(pipeline->pipelineState);
