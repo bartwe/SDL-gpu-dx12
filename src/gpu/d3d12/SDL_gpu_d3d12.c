@@ -1928,7 +1928,6 @@ static SDL_bool D3D12_INTERNAL_CreateShaderBytecode(
     if (pBytecode != NULL) {
         *pBytecode = SDL_malloc(bytecodeSize);
         if (!*pBytecode) {
-            SDL_OutOfMemory();
             if (blob) {
                 ID3D10Blob_Release(blob);
             }
