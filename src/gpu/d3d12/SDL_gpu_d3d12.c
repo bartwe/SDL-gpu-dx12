@@ -1288,7 +1288,6 @@ static void D3D12_INTERNAL_ResourceBarrier(
 {
     D3D12_RESOURCE_BARRIER barrierDesc[2];
     Uint32 numBarriers = 0;
-    SDL_zeroa(barrierDesc);
 
     /* No transition barrier is needed if the state is not changing. */
     if (sourceState != destinationState) {
@@ -3109,7 +3108,7 @@ static void D3D12_SetViewport(
     SDL_GpuViewport *viewport)
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
-    D3D12_VIEWPORT d3d12Viewport = { 0 };
+    D3D12_VIEWPORT d3d12Viewport;
     d3d12Viewport.TopLeftX = viewport->x;
     d3d12Viewport.TopLeftY = viewport->y;
     d3d12Viewport.Width = viewport->w;
@@ -3124,7 +3123,7 @@ static void D3D12_SetScissor(
     SDL_GpuRect *scissor)
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
-    D3D12_RECT scissorRect = { 0 };
+    D3D12_RECT scissorRect;
     scissorRect.left = scissor->x;
     scissorRect.top = scissor->y;
     scissorRect.right = scissor->x + scissor->w;
@@ -3148,7 +3147,7 @@ static void D3D12_INTERNAL_CycleActiveTexture(
     D3D12Renderer *renderer,
     D3D12TextureContainer *container)
 {
-    D3D12Texture *texture = NULL;
+    D3D12Texture *texture;
     Sint32 refCountTotal;
 
     /* If a previously-cycled texture is available, we can use that. */
@@ -3363,7 +3362,6 @@ static void D3D12_BeginRenderPass(
 
     d3d12CommandBuffer->colorAttachmentCount = colorAttachmentCount;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvs[MAX_COLOR_TARGET_BINDINGS];
-    SDL_zeroa(rtvs);
 
     for (Uint32 i = 0; i < colorAttachmentCount; i += 1) {
         SDL_bool cycle;
@@ -3403,7 +3401,7 @@ static void D3D12_BeginRenderPass(
         D3D12_INTERNAL_TrackTextureSubresource(d3d12CommandBuffer, subresource);
     }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE dsv = { 0 };
+    D3D12_CPU_DESCRIPTOR_HANDLE dsv;
     if (depthStencilAttachmentInfo != NULL) {
         SDL_bool cycle;
 
@@ -3458,7 +3456,7 @@ static void D3D12_BeginRenderPass(
         (depthStencilAttachmentInfo == NULL) ? NULL : &dsv);
 
     /* Set sensible default viewport state */
-    SDL_GpuViewport defaultViewport = { 0 };
+    SDL_GpuViewport defaultViewport;
     defaultViewport.x = 0;
     defaultViewport.y = 0;
     defaultViewport.w = (float)framebufferWidth;
@@ -3470,7 +3468,7 @@ static void D3D12_BeginRenderPass(
         commandBuffer,
         &defaultViewport);
 
-    SDL_GpuRect defaultScissor = { 0 };
+    SDL_GpuRect defaultScissor;
     defaultScissor.x = 0;
     defaultScissor.y = 0;
     defaultScissor.w = (Sint32)framebufferWidth;
@@ -3514,7 +3512,7 @@ static D3D12UniformBuffer *D3D12_INTERNAL_AcquireUniformBufferFromPool(
     D3D12CommandBuffer *commandBuffer)
 {
     D3D12Renderer *renderer = commandBuffer->renderer;
-    D3D12UniformBuffer *uniformBuffer = NULL;
+    D3D12UniformBuffer *uniformBuffer;
 
     SDL_LockMutex(renderer->acquireUniformBufferLock);
 
@@ -3711,7 +3709,6 @@ static void D3D12_BindVertexBuffers(
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
     D3D12_VERTEX_BUFFER_VIEW views[MAX_BUFFER_BINDINGS];
-    SDL_zeroa(views);
 
     for (Uint32 i = 0; i < bindingCount; i += 1) {
         D3D12Buffer *currentBuffer = ((D3D12BufferContainer *)pBindings[i].buffer)->activeBuffer;
@@ -3736,7 +3733,7 @@ static void D3D12_BindIndexBuffer(
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
     D3D12Buffer *buffer = ((D3D12BufferContainer *)pBinding->buffer)->activeBuffer;
-    D3D12_INDEX_BUFFER_VIEW view = { 0 };
+    D3D12_INDEX_BUFFER_VIEW view;
 
     D3D12_INTERNAL_TrackBuffer(d3d12CommandBuffer, buffer);
 
@@ -3872,7 +3869,7 @@ static void D3D12_INTERNAL_WriteGPUDescriptors(
     D3D12_GPU_DESCRIPTOR_HANDLE *gpuBaseDescriptor)
 {
     D3D12DescriptorHeap *heap = commandBuffer->gpuDescriptorHeaps[heapType];
-    D3D12_CPU_DESCRIPTOR_HANDLE gpuHeapCpuHandle = { 0 };
+    D3D12_CPU_DESCRIPTOR_HANDLE gpuHeapCpuHandle;
 
     /* FIXME: need to error on overflow */
     gpuHeapCpuHandle.ptr = heap->descriptorHeapCPUStart.ptr + (heap->currentDescriptorIndex * heap->descriptorSize);
@@ -3897,8 +3894,7 @@ static void D3D12_INTERNAL_BindGraphicsResources(
     D3D12GraphicsPipeline *graphicsPipeline = commandBuffer->currentGraphicsPipeline;
 
     D3D12_CPU_DESCRIPTOR_HANDLE cpuHandles[MAX_TEXTURE_SAMPLERS_PER_STAGE];
-    SDL_zeroa(cpuHandles);
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle = { 0 };
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
 
     if (commandBuffer->needVertexSamplerBind) {
         if (graphicsPipeline->vertexSamplerCount > 0) {
@@ -4336,8 +4332,8 @@ static void D3D12_UploadToTexture(
     D3D12BufferContainer *transferBufferContainer = (D3D12BufferContainer *)source->transferBuffer;
     D3D12TextureContainer *textureContainer = (D3D12TextureContainer *)destination->textureSlice.texture;
     D3D12Buffer *temporaryBuffer = NULL;
-    D3D12_TEXTURE_COPY_LOCATION sourceLocation = { 0 };
-    D3D12_TEXTURE_COPY_LOCATION destinationLocation = { 0 };
+    D3D12_TEXTURE_COPY_LOCATION sourceLocation;
+    D3D12_TEXTURE_COPY_LOCATION destinationLocation;
     Uint32 rowPitch = source->imagePitch;
     Uint32 alignedRowPitch;
     SDL_bool needsRealignment;
@@ -4534,15 +4530,12 @@ static void D3D12_Blit(
     D3D12Renderer *renderer = d3d12CommandBuffer->renderer;
     D3D12TextureContainer *sourceTextureContainer = (D3D12TextureContainer *)source->textureSlice.texture;
     D3D12TextureContainer *destinationTextureContainer = (D3D12TextureContainer *)destination->textureSlice.texture;
-    SDL_GpuColorAttachmentInfo colorAttachmentInfo = { 0 };
-    SDL_GpuViewport viewport = { 0 };
-    SDL_GpuTextureSamplerBinding textureSamplerBinding = { 0 };
-    BlitFragmentUniforms blitFragmentUniforms = { 0 };
-    SDL_GpuTextureCreateInfo *sourceTextureCreateInfo = NULL;
-    SDL_GpuTextureCreateInfo *destinationTextureCreateInfo = NULL;
-
-    sourceTextureCreateInfo = &sourceTextureContainer->createInfo;
-    destinationTextureCreateInfo = &destinationTextureContainer->createInfo;
+    SDL_GpuColorAttachmentInfo colorAttachmentInfo;
+    SDL_GpuViewport viewport;
+    SDL_GpuTextureSamplerBinding textureSamplerBinding;
+    BlitFragmentUniforms blitFragmentUniforms;
+    SDL_GpuTextureCreateInfo *sourceTextureCreateInfo = &sourceTextureContainer->createInfo;
+    SDL_GpuTextureCreateInfo *destinationTextureCreateInfo = &destinationTextureContainer->createInfo;
 
     /* Unused */
     colorAttachmentInfo.clearColor.r = 0;
@@ -4633,7 +4626,7 @@ static SDL_bool D3D12_SupportsSwapchainComposition(
     SDL_GpuSwapchainComposition swapchainComposition)
 {
     D3D12Renderer *renderer = (D3D12Renderer *)driverData;
-    DXGI_FORMAT format = { 0 };
+    DXGI_FORMAT format;
     D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport = { 0 };
     HRESULT res;
 
@@ -5185,8 +5178,8 @@ static SDL_GpuTextureFormat D3D12_GetSwapchainTextureFormat(
 static D3D12Fence *D3D12_INTERNAL_AcquireFence(
     D3D12Renderer *renderer)
 {
-    D3D12Fence *fence = NULL;
-    ID3D12Fence *handle = NULL;
+    D3D12Fence *fence;
+    ID3D12Fence *handle;
     HRESULT res;
 
     SDL_LockMutex(renderer->fenceLock);
@@ -5326,7 +5319,7 @@ static void D3D12_INTERNAL_AllocateCommandBuffer(
 static D3D12CommandBuffer *D3D12_INTERNAL_AcquireCommandBufferFromPool(
     D3D12Renderer *renderer)
 {
-    D3D12CommandBuffer *commandBuffer = NULL;
+    D3D12CommandBuffer *commandBuffer;
 
     if (renderer->availableCommandBufferCount == 0) {
         D3D12_INTERNAL_AllocateCommandBuffer(renderer);
@@ -5414,8 +5407,8 @@ static SDL_GpuTexture *D3D12_AcquireSwapchainTexture(
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
     D3D12Renderer *renderer = d3d12CommandBuffer->renderer;
-    D3D12WindowData *windowData = NULL;
-    DXGI_SWAP_CHAIN_DESC swapchainDesc = { 0 };
+    D3D12WindowData *windowData;
+    DXGI_SWAP_CHAIN_DESC swapchainDesc;
     int w, h;
     HRESULT res;
 
@@ -5650,7 +5643,6 @@ static void D3D12_Submit(
     D3D12Renderer *renderer = d3d12CommandBuffer->renderer;
     ID3D12CommandList *commandLists[1];
     HRESULT res;
-    SDL_zeroa(commandLists);
 
     SDL_LockMutex(renderer->submitLock);
 
@@ -5840,7 +5832,7 @@ static void D3D12_WaitForFences(
     Uint32 fenceCount)
 {
     D3D12Renderer *renderer = (D3D12Renderer *)driverData;
-    D3D12Fence *fence = NULL;
+    D3D12Fence *fence;
     HANDLE *events = SDL_stack_alloc(HANDLE, fenceCount);
     HRESULT res;
 
