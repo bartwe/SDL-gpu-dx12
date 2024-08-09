@@ -7043,6 +7043,10 @@ static void D3D12_INTERNAL_InitBlitPipelines(
     blitPipelineCreateInfo.blendConstants[2] = 1.0f;
     blitPipelineCreateInfo.blendConstants[3] = 1.0f;
 
+    blitPipelineCreateInfo.rasterizerState.fillMode = SDL_GPU_FILLMODE_FILL;
+    blitPipelineCreateInfo.rasterizerState.cullMode = SDL_GPU_CULLMODE_NONE;
+    blitPipelineCreateInfo.rasterizerState.frontFace = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+
     renderer->blitFrom2DPipeline = D3D12_CreateGraphicsPipeline(
         (SDL_GpuRenderer *)renderer,
         &blitPipelineCreateInfo);
