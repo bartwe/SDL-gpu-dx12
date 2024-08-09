@@ -5534,7 +5534,7 @@ static void D3D12_Blit(
         sourceTextureCreateInfo->depth == 1) {
         /* 2D source */
 
-        auto format = ((D3D12TextureContainer *)colorAttachmentInfo.textureSlice.texture)->header.info.format;
+        SDL_GpuTextureFormat format = ((D3D12TextureContainer *)colorAttachmentInfo.textureSlice.texture)->header.info.format;
 
         if (!D3D12_INTERNAL_IsBlittableTextureFormat(format)) {
             SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot blit to destination texture of this format!");
