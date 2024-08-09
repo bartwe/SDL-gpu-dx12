@@ -100,10 +100,11 @@
 #define COPYPASS_DEVICE \
     ((CommandBufferCommonHeader *)COPYPASS_COMMAND_BUFFER)->device
 
-#define CHECK_ENUM_RANGE(resource, type, retval)                                  \
-    if (!(((resource) > type##_INVALID) && ((resource) < type##_COUNT))) {      \
-        SDL_SetError("Argument of type " #type " out of range. (" #resource ")"); \
-        return retval;                                                            \
+#define CHECK_ENUM_RANGE(resource, type, retval)                                                          \
+    if (!(((resource) > type##_INVALID) && ((resource) < type##_COUNT))) {                                \
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, ("Argument of type " #type " out of range. (" #resource ")")); \
+        SDL_SetError("Argument of type " #type " out of range. (" #resource ")");                         \
+        return retval;                                                                                    \
     }
 
 /* Drivers */
@@ -333,6 +334,19 @@ SDL_GpuGraphicsPipeline *SDL_GpuCreateGraphicsPipeline(
     if (graphicsPipelineCreateInfo->depthStencilState.depthTestEnable) {
         CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
     }
+
+    if (graphicsPipelineCreateInfo->depthStencilState.stencilTestEnable) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.depthFailOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.failOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.passOp, SDL_GPU_STENCILOP, NULL);
+
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.depthFailOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.failOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.passOp, SDL_GPU_STENCILOP, NULL);
+    }
+
     if (graphicsPipelineCreateInfo->attachmentInfo.hasDepthStencilAttachment) {
         CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->attachmentInfo.depthStencilFormat, SDL_GPU_TEXTUREFORMAT, NULL);
     }
@@ -400,7 +414,8 @@ SDL_GpuSampler *SDL_GpuCreateSampler(
     CHECK_ENUM_RANGE(samplerCreateInfo->addressModeU, SDL_GPU_SAMPLERADDRESSMODE, NULL);
     CHECK_ENUM_RANGE(samplerCreateInfo->addressModeV, SDL_GPU_SAMPLERADDRESSMODE, NULL);
     CHECK_ENUM_RANGE(samplerCreateInfo->addressModeW, SDL_GPU_SAMPLERADDRESSMODE, NULL);
-    CHECK_ENUM_RANGE(samplerCreateInfo->compareOp, SDL_GPU_COMPAREOP, NULL);
+    if (samplerCreateInfo->compareEnable)
+        CHECK_ENUM_RANGE(samplerCreateInfo->compareOp, SDL_GPU_COMPAREOP, NULL);
 
     return device->CreateSampler(
         device->driverData,
