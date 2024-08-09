@@ -100,6 +100,12 @@
 #define COPYPASS_DEVICE \
     ((CommandBufferCommonHeader *)COPYPASS_COMMAND_BUFFER)->device
 
+#define CHECK_ENUM_RANGE(resource, type, retval)                                  \
+    if (!(((resource) > type##_INVALID) && ((resource) < type##_COUNT))) {      \
+        SDL_SetError("Argument of type " #type " out of range. (" #resource ")"); \
+        return retval;                                                            \
+    }
+
 /* Drivers */
 
 static const SDL_GpuBootstrap *backends[] = {
@@ -248,6 +254,9 @@ SDL_bool SDL_GpuSupportsTextureFormat(
 {
     CHECK_DEVICE_MAGIC(device, SDL_FALSE);
 
+    CHECK_ENUM_RANGE(format, SDL_GPU_TEXTUREFORMAT, SDL_FALSE);
+    CHECK_ENUM_RANGE(type, SDL_GPU_TEXTURETYPE, SDL_FALSE);
+
     return device->SupportsTextureFormat(
         device->driverData,
         format,
@@ -261,6 +270,8 @@ SDL_GpuSampleCount SDL_GpuGetBestSampleCount(
     SDL_GpuSampleCount desiredSampleCount)
 {
     CHECK_DEVICE_MAGIC(device, 0);
+    CHECK_ENUM_RANGE(format, SDL_GPU_TEXTUREFORMAT, SDL_FALSE);
+    CHECK_ENUM_RANGE(desiredSampleCount, SDL_GPU_SAMPLECOUNT, SDL_FALSE);
 
     return device->GetBestSampleCount(
         device->driverData,
@@ -279,6 +290,8 @@ SDL_GpuComputePipeline *SDL_GpuCreateComputePipeline(
         SDL_InvalidParamError("computePipelineCreateInfo");
         return NULL;
     }
+
+    CHECK_ENUM_RANGE(computePipelineCreateInfo->format, SDL_GPU_TEXTUREFORMAT, NULL);
 
     if (device->debugMode) {
         if (computePipelineCreateInfo->threadCountX == 0 ||
@@ -304,6 +317,29 @@ SDL_GpuGraphicsPipeline *SDL_GpuCreateGraphicsPipeline(
     if (graphicsPipelineCreateInfo == NULL) {
         SDL_InvalidParamError("graphicsPipelineCreateInfo");
         return NULL;
+    }
+
+    for (Uint32 i = 0; i < graphicsPipelineCreateInfo->vertexInputState.vertexBindingCount; ++i) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->vertexInputState.vertexBindings[i].inputRate, SDL_GPU_VERTEXINPUTRATE, NULL);
+    }
+    for (Uint32 i = 0; i < graphicsPipelineCreateInfo->vertexInputState.vertexAttributeCount; ++i) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->vertexInputState.vertexAttributes[i].format, SDL_GPU_VERTEXELEMENTFORMAT, NULL);
+    }
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->primitiveType, SDL_GPU_PRIMITIVETYPE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->rasterizerState.fillMode, SDL_GPU_FILLMODE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->rasterizerState.cullMode, SDL_GPU_CULLMODE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->rasterizerState.frontFace, SDL_GPU_FRONTFACE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->multisampleState.sampleCount, SDL_GPU_SAMPLECOUNT, NULL);
+    if (graphicsPipelineCreateInfo->depthStencilState.depthTestEnable) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
+    }
+    if (graphicsPipelineCreateInfo->attachmentInfo.hasDepthStencilAttachment) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->attachmentInfo.depthStencilFormat, SDL_GPU_TEXTUREFORMAT, NULL);
+    }
+
+    for (Uint32 i = 0; i < graphicsPipelineCreateInfo->attachmentInfo.colorAttachmentCount; ++i) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->attachmentInfo.colorAttachmentDescriptions[i].format, SDL_GPU_TEXTUREFORMAT, NULL);
+        /* todo, blendstates */
     }
 
     /* Automatically swap out the depth format if it's unsupported.
@@ -357,6 +393,14 @@ SDL_GpuSampler *SDL_GpuCreateSampler(
         SDL_InvalidParamError("samplerCreateInfo");
         return NULL;
     }
+
+    CHECK_ENUM_RANGE(samplerCreateInfo->minFilter, SDL_GPU_FILTER, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->magFilter, SDL_GPU_FILTER, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->mipmapMode, SDL_GPU_SAMPLERMIPMAPMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->addressModeU, SDL_GPU_SAMPLERADDRESSMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->addressModeV, SDL_GPU_SAMPLERADDRESSMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->addressModeW, SDL_GPU_SAMPLERADDRESSMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->compareOp, SDL_GPU_COMPAREOP, NULL);
 
     return device->CreateSampler(
         device->driverData,
@@ -1429,8 +1473,8 @@ void SDL_GpuDispatchCompute(
 void SDL_GpuDispatchComputeIndirect(
     SDL_GpuComputePass *computePass,
     SDL_GpuBuffer *buffer,
-    Uint32 offsetInBytes
-) {
+    Uint32 offsetInBytes)
+{
     if (computePass == NULL) {
         SDL_InvalidParamError("computePass");
         return;
@@ -1805,6 +1849,8 @@ SDL_bool SDL_GpuSupportsSwapchainComposition(
         return SDL_FALSE;
     }
 
+    CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+
     return device->SupportsSwapchainComposition(
         device->driverData,
         window,
@@ -1840,6 +1886,8 @@ SDL_bool SDL_GpuClaimWindow(
         return SDL_FALSE;
     }
 
+    CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+
     return device->ClaimWindow(
         device->driverData,
         window,
@@ -1873,6 +1921,8 @@ SDL_bool SDL_GpuSetSwapchainParameters(
         SDL_InvalidParamError("window");
         return SDL_FALSE;
     }
+
+    CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
 
     return device->SetSwapchainParameters(
         device->driverData,
