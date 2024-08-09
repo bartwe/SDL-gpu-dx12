@@ -459,6 +459,8 @@ typedef struct D3D12WindowData
     SDL_GpuPresentMode presentMode;
     SDL_GpuSwapchainComposition swapchainComposition;
     DXGI_FORMAT swapchainFormat;
+    DXGI_FORMAT swapchainCompositionFormat;
+    
     DXGI_COLOR_SPACE_TYPE swapchainColorSpace;
     Uint32 frameCounter;
 
@@ -501,7 +503,7 @@ struct D3D12Renderer
     ID3D12CommandSignature *indirectDispatchCommandSignature;
 
     /* Blit */
-    SDL_GpuGraphicsPipeline *blitFrom2DPipeline;
+    SDL_GpuGraphicsPipeline *blitFrom2DPipelines[SDL_GPU_TEXTUREFORMAT_MAX];
     SDL_GpuSampler *blitNearestSampler;
     SDL_GpuSampler *blitLinearSampler;
 
@@ -880,6 +882,57 @@ static void D3D12_INTERNAL_SetResourceName(
             text);
     }
 }
+
+static SDL_bool D3D12_INTERNAL_IsBlittableTextureFormat(SDL_GpuTextureFormat format)
+{
+    switch (format) {
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8:
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8:
+    case SDL_GPU_TEXTUREFORMAT_B5G6R5:
+    case SDL_GPU_TEXTUREFORMAT_B5G5R5A1:
+    case SDL_GPU_TEXTUREFORMAT_B4G4R4A4:
+    case SDL_GPU_TEXTUREFORMAT_R10G10B10A2:
+    case SDL_GPU_TEXTUREFORMAT_R16G16:
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16:
+    case SDL_GPU_TEXTUREFORMAT_R8:
+    case SDL_GPU_TEXTUREFORMAT_A8:
+
+    case SDL_GPU_TEXTUREFORMAT_R8G8_SNORM:
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SNORM:
+
+    case SDL_GPU_TEXTUREFORMAT_R16_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R16G16_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R32_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R32G32_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_SFLOAT:
+
+    /*
+    case SDL_GPU_TEXTUREFORMAT_R8_UINT:
+    case SDL_GPU_TEXTUREFORMAT_R8G8_UINT:
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
+    case SDL_GPU_TEXTUREFORMAT_R16_UINT:
+    case SDL_GPU_TEXTUREFORMAT_R16G16_UINT:
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
+    */
+
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SRGB:
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB:
+        return SDL_TRUE;
+
+    default:
+        return SDL_FALSE;
+    }
+}
+
+static SDL_GpuTextureFormat D3D12_INTERNAL_LookupGpuTextureFormat(DXGI_FORMAT format) {
+    for (int i =0 ; i < SDL_GPU_TEXTUREFORMAT_MAX; ++i) {
+        if (SDLToD3D12_TextureFormat[i] == format)
+            return i;
+    }
+    return SDL_GPU_TEXTUREFORMAT_INVALID;
+}
+
 
 /* Release / Cleanup */
 
@@ -3379,7 +3432,12 @@ static void D3D12_INTERNAL_ReleaseBlitPipelines(D3D12Renderer *renderer)
     D3D12_ReleaseSampler((SDL_GpuRenderer *)renderer, renderer->blitLinearSampler);
     D3D12_ReleaseSampler((SDL_GpuRenderer *)renderer, renderer->blitNearestSampler);
 
-    D3D12_ReleaseGraphicsPipeline((SDL_GpuRenderer *)renderer, renderer->blitFrom2DPipeline);
+    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_MAX; ++format) {
+        if (renderer->blitFrom2DPipelines[format] != NULL) {
+            D3D12_ReleaseGraphicsPipeline((SDL_GpuRenderer *)renderer, renderer->blitFrom2DPipelines[format]);
+            renderer->blitFrom2DPipelines[format] = NULL;
+        }
+    }
 }
 
 /* Render Pass */
@@ -5475,9 +5533,17 @@ static void D3D12_Blit(
         sourceTextureCreateInfo->layerCount == 1 &&
         sourceTextureCreateInfo->depth == 1) {
         /* 2D source */
+
+        auto format = ((D3D12TextureContainer *)colorAttachmentInfo.textureSlice.texture)->header.info.format;
+
+        if (!D3D12_INTERNAL_IsBlittableTextureFormat(format)) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Cannot blit to destination texture of this format!");
+            return;
+        }
+
         D3D12_BindGraphicsPipeline(
             commandBuffer,
-            renderer->blitFrom2DPipeline);
+            renderer->blitFrom2DPipelines[format]);
     } else {
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "3D blit source not implemented!");
         return;
@@ -5622,7 +5688,7 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
         SDL_GPU_TEXTUREUSAGE_COLOR_TARGET_BIT |
         SDL_GPU_TEXTUREUSAGE_SAMPLER_BIT;
     pTextureContainer->header.info.sampleCount = SDL_GPU_SAMPLECOUNT_1;
-    pTextureContainer->header.info.format = SDL_GPU_TEXTUREFORMAT_INVALID; /* FIXME: Set this to the actual format! */
+    pTextureContainer->header.info.format = D3D12_INTERNAL_LookupGpuTextureFormat(rtvFormat);
 
     pTextureContainer->debugName = NULL;
     pTextureContainer->textures = (D3D12Texture **)SDL_calloc(1, sizeof(D3D12Texture *));
@@ -5723,7 +5789,7 @@ static SDL_bool D3D12_INTERNAL_ResizeSwapchain(
                 renderer,
                 windowData->swapchain,
                 windowData->swapchainFormat,
-                (windowData->swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat,
+                windowData->swapchainCompositionFormat,
                 i,
                 &windowData->textureContainers[i])) {
             return SDL_FALSE;
@@ -5885,6 +5951,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     windowData->presentMode = presentMode;
     windowData->swapchainComposition = swapchainComposition;
     windowData->swapchainFormat = swapchainFormat;
+    windowData->swapchainCompositionFormat = (swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat;
     windowData->swapchainColorSpace = SwapchainCompositionToColorSpace[swapchainComposition];
     windowData->frameCounter = 0;
 
@@ -5894,9 +5961,9 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
     for (Uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
         if (!D3D12_INTERNAL_InitializeSwapchainTexture(
                 renderer,
-                swapchain3,
-                swapchainFormat,
-                (swapchainComposition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR_LINEAR) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : windowData->swapchainFormat,
+                windowData->swapchain,
+                windowData->swapchainFormat,
+                windowData->swapchainCompositionFormat,
                 i,
                 &windowData->textureContainers[i])) {
             IDXGISwapChain3_Release(swapchain3);
@@ -6986,52 +7053,57 @@ static void D3D12_INTERNAL_InitBlitPipelines(
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to compile blit from 2D pixel shader!");
     }
 
-    /* Blit from 2D pipeline */
-    SDL_zero(blitPipelineCreateInfo);
+    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_MAX; ++format) {
+        if (!D3D12_INTERNAL_IsBlittableTextureFormat((SDL_GpuTextureFormat)format))
+            continue;
 
-    SDL_zero(colorAttachmentDesc);
-    colorAttachmentDesc.blendState.colorWriteMask = 0xF;
-    colorAttachmentDesc.format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8; /* FIXME: we are gonna need a pipeline per output format */
+        /* Blit from 2D pipeline */
+        SDL_zero(blitPipelineCreateInfo);
 
-    blitPipelineCreateInfo.attachmentInfo.colorAttachmentDescriptions = &colorAttachmentDesc;
-    blitPipelineCreateInfo.attachmentInfo.colorAttachmentCount = 1;
-    blitPipelineCreateInfo.attachmentInfo.depthStencilFormat = SDL_GPU_TEXTUREFORMAT_D16_UNORM; /* arbitrary */
-    blitPipelineCreateInfo.attachmentInfo.hasDepthStencilAttachment = 0;
+        SDL_zero(colorAttachmentDesc);
+        colorAttachmentDesc.blendState.colorWriteMask = 0xF;
+        colorAttachmentDesc.format = (SDL_GpuTextureFormat)format;
 
-    binding.binding = 0;
-    binding.inputRate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
-    binding.stepRate = 0;
-    binding.stride = 64;
+        blitPipelineCreateInfo.attachmentInfo.colorAttachmentDescriptions = &colorAttachmentDesc;
+        blitPipelineCreateInfo.attachmentInfo.colorAttachmentCount = 1;
+        blitPipelineCreateInfo.attachmentInfo.depthStencilFormat = SDL_GPU_TEXTUREFORMAT_D16_UNORM; /* arbitrary */
+        blitPipelineCreateInfo.attachmentInfo.hasDepthStencilAttachment = 0;
 
-    attribute.binding = 0;
-    attribute.format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR2;
-    attribute.location = 0;
-    attribute.offset = 0;
+        binding.binding = 0;
+        binding.inputRate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+        binding.stepRate = 0;
+        binding.stride = 64;
 
-    blitPipelineCreateInfo.vertexInputState.vertexAttributeCount = 1;
-    blitPipelineCreateInfo.vertexInputState.vertexAttributes = &attribute;
-    blitPipelineCreateInfo.vertexInputState.vertexBindingCount = 1;
-    blitPipelineCreateInfo.vertexInputState.vertexBindings = &binding;
+        attribute.binding = 0;
+        attribute.format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR2;
+        attribute.location = 0;
+        attribute.offset = 0;
 
-    blitPipelineCreateInfo.vertexShader = fullscreenVertexShader;
-    blitPipelineCreateInfo.fragmentShader = blitFrom2DPixelShader;
+        blitPipelineCreateInfo.vertexInputState.vertexAttributeCount = 1;
+        blitPipelineCreateInfo.vertexInputState.vertexAttributes = &attribute;
+        blitPipelineCreateInfo.vertexInputState.vertexBindingCount = 1;
+        blitPipelineCreateInfo.vertexInputState.vertexBindings = &binding;
 
-    blitPipelineCreateInfo.multisampleState.sampleCount = SDL_GPU_SAMPLECOUNT_1;
-    blitPipelineCreateInfo.multisampleState.sampleMask = 0xFFFFFFFF;
+        blitPipelineCreateInfo.vertexShader = fullscreenVertexShader;
+        blitPipelineCreateInfo.fragmentShader = blitFrom2DPixelShader;
 
-    blitPipelineCreateInfo.primitiveType = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        blitPipelineCreateInfo.multisampleState.sampleCount = SDL_GPU_SAMPLECOUNT_1;
+        blitPipelineCreateInfo.multisampleState.sampleMask = 0xFFFFFFFF;
 
-    blitPipelineCreateInfo.blendConstants[0] = 1.0f;
-    blitPipelineCreateInfo.blendConstants[1] = 1.0f;
-    blitPipelineCreateInfo.blendConstants[2] = 1.0f;
-    blitPipelineCreateInfo.blendConstants[3] = 1.0f;
+        blitPipelineCreateInfo.primitiveType = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
-    renderer->blitFrom2DPipeline = D3D12_CreateGraphicsPipeline(
-        (SDL_GpuRenderer *)renderer,
-        &blitPipelineCreateInfo);
+        blitPipelineCreateInfo.blendConstants[0] = 1.0f;
+        blitPipelineCreateInfo.blendConstants[1] = 1.0f;
+        blitPipelineCreateInfo.blendConstants[2] = 1.0f;
+        blitPipelineCreateInfo.blendConstants[3] = 1.0f;
 
-    if (renderer->blitFrom2DPipeline == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create blit pipeline!");
+        renderer->blitFrom2DPipelines[format] = D3D12_CreateGraphicsPipeline(
+            (SDL_GpuRenderer *)renderer,
+            &blitPipelineCreateInfo);
+
+        if (renderer->blitFrom2DPipelines[format] == NULL) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create blit pipeline!");
+        }
     }
 
     /* Create samplers */
