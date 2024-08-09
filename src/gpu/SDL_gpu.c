@@ -107,6 +107,13 @@
         return retval;                                                                                    \
     }
 
+#define CHECK_ENUM_MASKCHECK(resource, type, retval)                                                      \
+    if (!(((resource) > type##_INVALID) && (!((resource) & ~type##_MASKCHECK)))) {                        \
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, ("Argument of type " #type " out of range. (" #resource ")")); \
+        SDL_SetError("Argument of type " #type " out of range. (" #resource ")");                         \
+        return retval;                                                                                    \
+    }
+
 /* Drivers */
 
 static const SDL_GpuBootstrap *backends[] = {
@@ -432,6 +439,9 @@ SDL_GpuShader *SDL_GpuCreateShader(
         return NULL;
     }
 
+    CHECK_ENUM_RANGE(shaderCreateInfo->format, SDL_GPU_SHADERFORMAT, NULL);
+    CHECK_ENUM_RANGE(shaderCreateInfo->stage, SDL_GPU_SHADERSTAGE, NULL);
+
     return device->CreateShader(
         device->driverData,
         shaderCreateInfo);
@@ -446,6 +456,10 @@ SDL_GpuTexture *SDL_GpuCreateTexture(
         SDL_InvalidParamError("textureCreateInfo");
         return NULL;
     }
+
+    CHECK_ENUM_RANGE(textureCreateInfo->sampleCount, SDL_GPU_SAMPLECOUNT, NULL);
+    CHECK_ENUM_RANGE(textureCreateInfo->format, SDL_GPU_TEXTUREFORMAT, NULL);
+    CHECK_ENUM_MASKCHECK(textureCreateInfo->usageFlags, SDL_GPU_TEXTUREUSAGE, NULL);
 
     if (device->debugMode) {
         SDL_bool failed = SDL_FALSE;
@@ -559,6 +573,7 @@ SDL_GpuBuffer *SDL_GpuCreateBuffer(
     Uint32 sizeInBytes)
 {
     CHECK_DEVICE_MAGIC(device, NULL);
+    CHECK_ENUM_MASKCHECK(usageFlags, SDL_GPU_BUFFERUSAGE, NULL);
 
     return device->CreateBuffer(
         device->driverData,
@@ -572,6 +587,7 @@ SDL_GpuTransferBuffer *SDL_GpuCreateTransferBuffer(
     Uint32 sizeInBytes)
 {
     CHECK_DEVICE_MAGIC(device, NULL);
+    CHECK_ENUM_RANGE(usage, SDL_GPU_TRANSFERBUFFERUSAGE, NULL);
 
     return device->CreateTransferBuffer(
         device->driverData,
@@ -910,6 +926,18 @@ SDL_GpuRenderPass *SDL_GpuBeginRenderPass(
     if (colorAttachmentInfos == NULL && colorAttachmentCount > 0) {
         SDL_InvalidParamError("colorAttachmentInfos");
         return NULL;
+    }
+
+    for (Uint32 i = 0; i < colorAttachmentCount; ++i) {
+        CHECK_ENUM_RANGE(colorAttachmentInfos[i].loadOp, SDL_GPU_LOADOP, NULL);
+        CHECK_ENUM_RANGE(colorAttachmentInfos[i].storeOp, SDL_GPU_STOREOP, NULL);
+    }
+
+    if (depthStencilAttachmentInfo) {
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->loadOp, SDL_GPU_LOADOP, NULL);
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->storeOp, SDL_GPU_STOREOP, NULL);
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->stencilLoadOp, SDL_GPU_LOADOP, NULL);
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->stencilStoreOp, SDL_GPU_STOREOP, NULL);
     }
 
     if (colorAttachmentCount > MAX_COLOR_TARGET_BINDINGS) {
@@ -1813,6 +1841,8 @@ void SDL_GpuBlit(
         return;
     }
 
+    CHECK_ENUM_RANGE(filterMode, SDL_GPU_FILTER, );
+
     if (COMMAND_BUFFER_DEVICE->debugMode) {
         CHECK_COMMAND_BUFFER
 
@@ -1883,6 +1913,8 @@ SDL_bool SDL_GpuSupportsPresentMode(
         return SDL_FALSE;
     }
 
+    CHECK_ENUM_RANGE(presentMode, SDL_GPU_PRESENTMODE, SDL_FALSE);
+
     return device->SupportsPresentMode(
         device->driverData,
         window,
@@ -1902,6 +1934,7 @@ SDL_bool SDL_GpuClaimWindow(
     }
 
     CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+    CHECK_ENUM_RANGE(presentMode, SDL_GPU_PRESENTMODE, SDL_FALSE);
 
     return device->ClaimWindow(
         device->driverData,
@@ -1938,6 +1971,7 @@ SDL_bool SDL_GpuSetSwapchainParameters(
     }
 
     CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+    CHECK_ENUM_RANGE(presentMode, SDL_GPU_PRESENTMODE, SDL_FALSE);
 
     return device->SetSwapchainParameters(
         device->driverData,
