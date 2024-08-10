@@ -95,6 +95,7 @@ static void METAL_INTERNAL_DestroyBlitResources(SDL_GpuRenderer *driverData);
 /* Conversions */
 
 static MTLPixelFormat SDLToMetal_SurfaceFormat[] = {
+    (MTLPixelFormat)-1,
     MTLPixelFormatRGBA8Unorm,   /* R8G8B8A8 */
     MTLPixelFormatBGRA8Unorm,   /* B8G8R8A8 */
     MTLPixelFormatB5G6R5Unorm,  /* B5G6R5 */
@@ -155,6 +156,7 @@ static MTLPixelFormat SDLToMetal_SurfaceFormat[] = {
 };
 
 static MTLVertexFormat SDLToMetal_VertexFormat[] = {
+    (MTLVertexFormat)-1,
     MTLVertexFormatUInt,             /* UINT */
     MTLVertexFormatFloat,            /* FLOAT */
     MTLVertexFormatFloat2,           /* VECTOR2 */
@@ -171,11 +173,13 @@ static MTLVertexFormat SDLToMetal_VertexFormat[] = {
 };
 
 static MTLIndexType SDLToMetal_IndexType[] = {
+    (MTLIndexType)-1,
     MTLIndexTypeUInt16, /* 16BIT */
     MTLIndexTypeUInt32, /* 32BIT */
 };
 
 static MTLPrimitiveType SDLToMetal_PrimitiveType[] = {
+    (MTLPrimitiveType)-1,
     MTLPrimitiveTypePoint,        /* POINTLIST */
     MTLPrimitiveTypeLine,         /* LINELIST */
     MTLPrimitiveTypeLineStrip,    /* LINESTRIP */
@@ -184,22 +188,26 @@ static MTLPrimitiveType SDLToMetal_PrimitiveType[] = {
 };
 
 static MTLTriangleFillMode SDLToMetal_PolygonMode[] = {
+    (MTLTriangleFillMode)-1,
     MTLTriangleFillModeFill,  /* FILL */
     MTLTriangleFillModeLines, /* LINE */
 };
 
 static MTLCullMode SDLToMetal_CullMode[] = {
+    (MTLCullMode)-1,
     MTLCullModeNone,  /* NONE */
     MTLCullModeFront, /* FRONT */
     MTLCullModeBack,  /* BACK */
 };
 
 static MTLWinding SDLToMetal_FrontFace[] = {
+    (MTLWinding)-1,
     MTLWindingCounterClockwise, /* COUNTER_CLOCKWISE */
     MTLWindingClockwise,        /* CLOCKWISE */
 };
 
 static MTLBlendFactor SDLToMetal_BlendFactor[] = {
+    (MTLBlendFactor)-1,
     MTLBlendFactorZero,                     /* ZERO */
     MTLBlendFactorOne,                      /* ONE */
     MTLBlendFactorSourceColor,              /* SRC_COLOR */
@@ -216,6 +224,7 @@ static MTLBlendFactor SDLToMetal_BlendFactor[] = {
 };
 
 static MTLBlendOperation SDLToMetal_BlendOp[] = {
+    (MTLBlendOperation)-1,
     MTLBlendOperationAdd,             /* ADD */
     MTLBlendOperationSubtract,        /* SUBTRACT */
     MTLBlendOperationReverseSubtract, /* REVERSE_SUBTRACT */
@@ -224,6 +233,7 @@ static MTLBlendOperation SDLToMetal_BlendOp[] = {
 };
 
 static MTLCompareFunction SDLToMetal_CompareOp[] = {
+    (MTLCompareFunction)-1,
     MTLCompareFunctionNever,        /* NEVER */
     MTLCompareFunctionLess,         /* LESS */
     MTLCompareFunctionEqual,        /* EQUAL */
@@ -235,6 +245,7 @@ static MTLCompareFunction SDLToMetal_CompareOp[] = {
 };
 
 static MTLStencilOperation SDLToMetal_StencilOp[] = {
+    (MTLStencilOperation)-1,
     MTLStencilOperationKeep,           /* KEEP */
     MTLStencilOperationZero,           /* ZERO */
     MTLStencilOperationReplace,        /* REPLACE */
@@ -246,33 +257,39 @@ static MTLStencilOperation SDLToMetal_StencilOp[] = {
 };
 
 static MTLSamplerAddressMode SDLToMetal_SamplerAddressMode[] = {
+    (MTLSamplerAddressMode)-1,
     MTLSamplerAddressModeRepeat,       /* REPEAT */
     MTLSamplerAddressModeMirrorRepeat, /* MIRRORED_REPEAT */
     MTLSamplerAddressModeClampToEdge   /* CLAMP_TO_EDGE */
 };
 
 static MTLSamplerMinMagFilter SDLToMetal_MinMagFilter[] = {
+    (MTLSamplerMinMagFilter)-1,
     MTLSamplerMinMagFilterNearest, /* NEAREST */
     MTLSamplerMinMagFilterLinear,  /* LINEAR */
 };
 
 static MTLSamplerMipFilter SDLToMetal_MipFilter[] = {
+    (MTLSamplerMipFilter)-1,
     MTLSamplerMipFilterNearest, /* NEAREST */
     MTLSamplerMipFilterLinear,  /* LINEAR */
 };
 
 static MTLLoadAction SDLToMetal_LoadOp[] = {
+    (MTLLoadAction)-1,
     MTLLoadActionLoad,     /* LOAD */
     MTLLoadActionClear,    /* CLEAR */
     MTLLoadActionDontCare, /* DONT_CARE */
 };
 
 static MTLVertexStepFunction SDLToMetal_StepFunction[] = {
+    (MTLVertexStepFunction)-1,
     MTLVertexStepFunctionPerVertex,
     MTLVertexStepFunctionPerInstance,
 };
 
 static NSUInteger SDLToMetal_SampleCount[] = {
+    0,
     1, /* SDL_GPU_SAMPLECOUNT_1 */
     2, /* SDL_GPU_SAMPLECOUNT_2 */
     4, /* SDL_GPU_SAMPLECOUNT_4 */
@@ -280,6 +297,7 @@ static NSUInteger SDLToMetal_SampleCount[] = {
 };
 
 static SDL_GpuTextureFormat SwapchainCompositionToFormat[] = {
+    SDL_GPU_TEXTUREFORMAT_INVALID,
     SDL_GPU_TEXTUREFORMAT_B8G8R8A8,            /* SDR */
     SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB,       /* SDR_LINEAR */
     SDL_GPU_TEXTUREFORMAT_R16G16B16A16_SFLOAT, /* HDR_EXTENDED_LINEAR */
