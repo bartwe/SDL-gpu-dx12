@@ -130,12 +130,14 @@ static const Uint8 DEVICE_PRIORITY_LOWPOWER[] = {
 };
 
 static VkPresentModeKHR SDLToVK_PresentMode[] = {
+    (VkPresentModeKHR)-1,
     VK_PRESENT_MODE_FIFO_KHR,
     VK_PRESENT_MODE_IMMEDIATE_KHR,
     VK_PRESENT_MODE_MAILBOX_KHR
 };
 
 static VkFormat SDLToVK_SurfaceFormat[] = {
+    VK_FORMAT_UNDEFINED,
     VK_FORMAT_R8G8B8A8_UNORM,           /* R8G8B8A8 */
     VK_FORMAT_B8G8R8A8_UNORM,           /* B8G8R8A8 */
     VK_FORMAT_R5G6B5_UNORM_PACK16,      /* B5G6R5 */
@@ -176,6 +178,7 @@ static VkFormat SDLToVK_SurfaceFormat[] = {
 };
 
 static VkComponentMapping SDLToVK_SurfaceSwizzle[] = {
+    IDENTITY_SWIZZLE, /* INVALID */
     IDENTITY_SWIZZLE, /* R8G8B8A8 */
     IDENTITY_SWIZZLE, /* B8G8R8A8 */
     {
@@ -240,6 +243,7 @@ static VkComponentMapping SDLToVK_SurfaceSwizzle[] = {
 };
 
 static VkFormat SwapchainCompositionToFormat[] = {
+    VK_FORMAT_UNDEFINED, 
     VK_FORMAT_B8G8R8A8_UNORM,          /* SDR */
     VK_FORMAT_B8G8R8A8_SRGB,           /* SDR_LINEAR */
     VK_FORMAT_R16G16B16A16_SFLOAT,     /* HDR_EXTENDED_LINEAR */
@@ -247,6 +251,7 @@ static VkFormat SwapchainCompositionToFormat[] = {
 };
 
 static VkFormat SwapchainCompositionToFallbackFormat[] = {
+    VK_FORMAT_UNDEFINED,
     VK_FORMAT_R8G8B8A8_UNORM,
     VK_FORMAT_R8G8B8A8_SRGB,
     VK_FORMAT_UNDEFINED, /* no fallback */
@@ -272,6 +277,7 @@ static SDL_GpuTextureFormat SwapchainCompositionToSDLFormat(
 }
 
 static VkColorSpaceKHR SwapchainCompositionToColorSpace[] = {
+    (VkColorSpaceKHR)-1,
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
     VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT,
@@ -279,6 +285,7 @@ static VkColorSpaceKHR SwapchainCompositionToColorSpace[] = {
 };
 
 static VkComponentMapping SwapchainCompositionSwizzle[] = {
+    IDENTITY_SWIZZLE, /* INVALID */
     IDENTITY_SWIZZLE, /* SDR */
     IDENTITY_SWIZZLE, /* SDR_SRGB */
     IDENTITY_SWIZZLE, /* HDR */
@@ -292,6 +299,7 @@ static VkComponentMapping SwapchainCompositionSwizzle[] = {
 };
 
 static VkFormat SDLToVK_VertexFormat[] = {
+    VK_FORMAT_UNDEFINED,
     VK_FORMAT_R32_UINT,             /* UINT */
     VK_FORMAT_R32_SFLOAT,           /* FLOAT */
     VK_FORMAT_R32G32_SFLOAT,        /* VECTOR2 */
@@ -308,11 +316,13 @@ static VkFormat SDLToVK_VertexFormat[] = {
 };
 
 static VkIndexType SDLToVK_IndexType[] = {
+    (VkIndexType)-1,
     VK_INDEX_TYPE_UINT16,
     VK_INDEX_TYPE_UINT32
 };
 
 static VkPrimitiveTopology SDLToVK_PrimitiveType[] = {
+    (VkPrimitiveTopology)-1,
     VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
     VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
     VK_PRIMITIVE_TOPOLOGY_LINE_STRIP,
@@ -321,6 +331,7 @@ static VkPrimitiveTopology SDLToVK_PrimitiveType[] = {
 };
 
 static VkCullModeFlags SDLToVK_CullMode[] = {
+    (VkCullModeFlagBits)-1,
     VK_CULL_MODE_NONE,
     VK_CULL_MODE_FRONT_BIT,
     VK_CULL_MODE_BACK_BIT,
@@ -328,11 +339,13 @@ static VkCullModeFlags SDLToVK_CullMode[] = {
 };
 
 static VkFrontFace SDLToVK_FrontFace[] = {
+    (VkFrontFace)-1,
     VK_FRONT_FACE_COUNTER_CLOCKWISE,
     VK_FRONT_FACE_CLOCKWISE
 };
 
 static VkBlendFactor SDLToVK_BlendFactor[] = {
+    (VkBlendFactor)-1,
     VK_BLEND_FACTOR_ZERO,
     VK_BLEND_FACTOR_ONE,
     VK_BLEND_FACTOR_SRC_COLOR,
@@ -351,6 +364,7 @@ static VkBlendFactor SDLToVK_BlendFactor[] = {
 };
 
 static VkBlendOp SDLToVK_BlendOp[] = {
+    (VkBlendOp)-1,
     VK_BLEND_OP_ADD,
     VK_BLEND_OP_SUBTRACT,
     VK_BLEND_OP_REVERSE_SUBTRACT,
@@ -359,6 +373,7 @@ static VkBlendOp SDLToVK_BlendOp[] = {
 };
 
 static VkCompareOp SDLToVK_CompareOp[] = {
+    (VkCompareOp)-1,
     VK_COMPARE_OP_NEVER,
     VK_COMPARE_OP_LESS,
     VK_COMPARE_OP_EQUAL,
@@ -370,6 +385,7 @@ static VkCompareOp SDLToVK_CompareOp[] = {
 };
 
 static VkStencilOp SDLToVK_StencilOp[] = {
+    (VkStencilOp)-1,
     VK_STENCIL_OP_KEEP,
     VK_STENCIL_OP_ZERO,
     VK_STENCIL_OP_REPLACE,
@@ -381,17 +397,20 @@ static VkStencilOp SDLToVK_StencilOp[] = {
 };
 
 static VkAttachmentLoadOp SDLToVK_LoadOp[] = {
+    (VkAttachmentLoadOp)-1,
     VK_ATTACHMENT_LOAD_OP_LOAD,
     VK_ATTACHMENT_LOAD_OP_CLEAR,
     VK_ATTACHMENT_LOAD_OP_DONT_CARE
 };
 
 static VkAttachmentStoreOp SDLToVK_StoreOp[] = {
+    (VkAttachmentStoreOp)-1,
     VK_ATTACHMENT_STORE_OP_STORE,
     VK_ATTACHMENT_STORE_OP_DONT_CARE
 };
 
 static VkSampleCountFlagBits SDLToVK_SampleCount[] = {
+    (VkSampleCountFlagBits)-1,
     VK_SAMPLE_COUNT_1_BIT,
     VK_SAMPLE_COUNT_2_BIT,
     VK_SAMPLE_COUNT_4_BIT,
@@ -402,21 +421,25 @@ static VkSampleCountFlagBits SDLToVK_SampleCount[] = {
 };
 
 static VkVertexInputRate SDLToVK_VertexInputRate[] = {
+    (VkVertexInputRate)-1,
     VK_VERTEX_INPUT_RATE_VERTEX,
     VK_VERTEX_INPUT_RATE_INSTANCE
 };
 
 static VkFilter SDLToVK_Filter[] = {
+    (VkFilter)-1,
     VK_FILTER_NEAREST,
     VK_FILTER_LINEAR
 };
 
 static VkSamplerMipmapMode SDLToVK_SamplerMipmapMode[] = {
+    (VkSamplerMipmapMode)-1,
     VK_SAMPLER_MIPMAP_MODE_NEAREST,
     VK_SAMPLER_MIPMAP_MODE_LINEAR
 };
 
 static VkSamplerAddressMode SDLToVK_SamplerAddressMode[] = {
+    (VkSamplerAddressMode)-1,
     VK_SAMPLER_ADDRESS_MODE_REPEAT,
     VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
     VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
