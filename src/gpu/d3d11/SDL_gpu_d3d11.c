@@ -5182,6 +5182,8 @@ static SDL_bool D3D11_SupportsPresentMode(
         return SDL_TRUE;
     case SDL_GPU_PRESENTMODE_MAILBOX:
         return renderer->supportsFlipDiscard;
+    default:
+        break;
     }
     SDL_assert(!"Unrecognized present mode");
     return SDL_FALSE;
