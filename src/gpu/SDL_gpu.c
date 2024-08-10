@@ -299,7 +299,7 @@ SDL_GpuComputePipeline *SDL_GpuCreateComputePipeline(
         return NULL;
     }
 
-    CHECK_ENUM_RANGE(computePipelineCreateInfo->format, SDL_GPU_TEXTUREFORMAT, NULL);
+    CHECK_ENUM_RANGE(computePipelineCreateInfo->format, SDL_GPU_SHADERFORMAT, NULL);
 
     if (device->debugMode) {
         if (computePipelineCreateInfo->threadCountX == 0 ||
