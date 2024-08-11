@@ -128,7 +128,7 @@ typedef enum SDL_GpuTextureFormat
     SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT,
     SDL_GPU_TEXTUREFORMAT_D32_SFLOAT_S8_UINT,
 
-    SDL_GPU_TEXTUREFORMAT_MAX,
+    SDL_GPU_TEXTUREFORMAT_COUNT
 } SDL_GpuTextureFormat;
 
 typedef enum SDL_GpuTextureUsageFlagBits

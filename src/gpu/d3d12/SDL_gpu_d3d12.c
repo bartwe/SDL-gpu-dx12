@@ -460,7 +460,7 @@ typedef struct D3D12WindowData
     SDL_GpuSwapchainComposition swapchainComposition;
     DXGI_FORMAT swapchainFormat;
     DXGI_FORMAT swapchainCompositionFormat;
-    
+
     DXGI_COLOR_SPACE_TYPE swapchainColorSpace;
     Uint32 frameCounter;
 
@@ -504,7 +504,7 @@ struct D3D12Renderer
     ID3D12CommandSignature *indirectDispatchCommandSignature;
 
     /* Blit */
-    SDL_GpuGraphicsPipeline *blitFrom2DPipelines[SDL_GPU_TEXTUREFORMAT_MAX];
+    SDL_GpuGraphicsPipeline *blitFrom2DPipelines[SDL_GPU_TEXTUREFORMAT_COUNT];
     SDL_GpuSampler *blitNearestSampler;
     SDL_GpuSampler *blitLinearSampler;
 
@@ -908,14 +908,14 @@ static SDL_bool D3D12_INTERNAL_IsBlittableTextureFormat(SDL_GpuTextureFormat for
     case SDL_GPU_TEXTUREFORMAT_R32G32_SFLOAT:
     case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_SFLOAT:
 
-    /*
-    case SDL_GPU_TEXTUREFORMAT_R8_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R8G8_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R16_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R16G16_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
-    */
+        /*
+        case SDL_GPU_TEXTUREFORMAT_R8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R8G8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R16_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R16G16_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
+        */
 
     case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SRGB:
     case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB:
@@ -926,14 +926,14 @@ static SDL_bool D3D12_INTERNAL_IsBlittableTextureFormat(SDL_GpuTextureFormat for
     }
 }
 
-static SDL_GpuTextureFormat D3D12_INTERNAL_LookupGpuTextureFormat(DXGI_FORMAT format) {
-    for (int i =0 ; i < SDL_GPU_TEXTUREFORMAT_MAX; ++i) {
+static SDL_GpuTextureFormat D3D12_INTERNAL_LookupGpuTextureFormat(DXGI_FORMAT format)
+{
+    for (int i = 0; i < SDL_GPU_TEXTUREFORMAT_COUNT; ++i) {
         if (SDLToD3D12_TextureFormat[i] == format)
             return i;
     }
     return SDL_GPU_TEXTUREFORMAT_INVALID;
 }
-
 
 /* Release / Cleanup */
 
@@ -3356,11 +3356,11 @@ static void D3D12_InsertDebugLabel(
     Uint32 convSize;
 
     if (!D3D12_INTERNAL_StrToWStr(
-        d3d12CommandBuffer->renderer,
-        text,
-        wstr,
-        sizeof(wstr),
-        &convSize)) {
+            d3d12CommandBuffer->renderer,
+            text,
+            wstr,
+            sizeof(wstr),
+            &convSize)) {
         return;
     }
 
@@ -3380,11 +3380,11 @@ static void D3D12_PushDebugGroup(
     Uint32 convSize;
 
     if (!D3D12_INTERNAL_StrToWStr(
-        d3d12CommandBuffer->renderer,
-        name,
-        wstr,
-        sizeof(wstr),
-        &convSize)) {
+            d3d12CommandBuffer->renderer,
+            name,
+            wstr,
+            sizeof(wstr),
+            &convSize)) {
         return;
     }
 
@@ -3526,7 +3526,7 @@ static void D3D12_INTERNAL_ReleaseBlitPipelines(D3D12Renderer *renderer)
     D3D12_ReleaseSampler((SDL_GpuRenderer *)renderer, renderer->blitLinearSampler);
     D3D12_ReleaseSampler((SDL_GpuRenderer *)renderer, renderer->blitNearestSampler);
 
-    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_MAX; ++format) {
+    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_COUNT; ++format) {
         if (renderer->blitFrom2DPipelines[format] != NULL) {
             D3D12_ReleaseGraphicsPipeline((SDL_GpuRenderer *)renderer, renderer->blitFrom2DPipelines[format]);
             renderer->blitFrom2DPipelines[format] = NULL;
@@ -7211,7 +7211,7 @@ static void D3D12_INTERNAL_InitBlitPipelines(
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to compile blit from 2D pixel shader!");
     }
 
-    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_MAX; ++format) {
+    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_COUNT; ++format) {
         if (!D3D12_INTERNAL_IsBlittableTextureFormat((SDL_GpuTextureFormat)format))
             continue;
 
@@ -7254,6 +7254,10 @@ static void D3D12_INTERNAL_InitBlitPipelines(
         blitPipelineCreateInfo.blendConstants[1] = 1.0f;
         blitPipelineCreateInfo.blendConstants[2] = 1.0f;
         blitPipelineCreateInfo.blendConstants[3] = 1.0f;
+
+        blitPipelineCreateInfo.rasterizerState.fillMode = SDL_GPU_FILLMODE_FILL;
+        blitPipelineCreateInfo.rasterizerState.cullMode = SDL_GPU_CULLMODE_NONE;
+        blitPipelineCreateInfo.rasterizerState.frontFace = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
         renderer->blitFrom2DPipelines[format] = D3D12_CreateGraphicsPipeline(
             (SDL_GpuRenderer *)renderer,
