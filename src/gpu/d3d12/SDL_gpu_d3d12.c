@@ -521,7 +521,7 @@ struct D3D12Renderer
     ID3D12CommandSignature *indirectDispatchCommandSignature;
 
     /* Blit */
-    SDL_GpuGraphicsPipeline *blitFrom2DPipelines[SDL_GPU_TEXTUREFORMAT_MAX];
+    SDL_GpuGraphicsPipeline *blitFrom2DPipelines[SDL_GPU_TEXTUREFORMAT_COUNT];
     SDL_GpuSampler *blitNearestSampler;
     SDL_GpuSampler *blitLinearSampler;
 
@@ -944,7 +944,7 @@ static SDL_bool D3D12_INTERNAL_IsBlittableTextureFormat(SDL_GpuTextureFormat for
 }
 
 static SDL_GpuTextureFormat D3D12_INTERNAL_LookupGpuTextureFormat(DXGI_FORMAT format) {
-    for (int i =0 ; i < SDL_GPU_TEXTUREFORMAT_MAX; ++i) {
+    for (int i =0 ; i < SDL_GPU_TEXTUREFORMAT_COUNT; ++i) {
         if (SDLToD3D12_TextureFormat[i] == format)
             return i;
     }
@@ -3542,7 +3542,7 @@ static void D3D12_INTERNAL_ReleaseBlitPipelines(D3D12Renderer *renderer)
     D3D12_ReleaseSampler((SDL_GpuRenderer *)renderer, renderer->blitLinearSampler);
     D3D12_ReleaseSampler((SDL_GpuRenderer *)renderer, renderer->blitNearestSampler);
 
-    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_MAX; ++format) {
+    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_COUNT; ++format) {
         if (renderer->blitFrom2DPipelines[format] != NULL) {
             D3D12_ReleaseGraphicsPipeline((SDL_GpuRenderer *)renderer, renderer->blitFrom2DPipelines[format]);
             renderer->blitFrom2DPipelines[format] = NULL;
@@ -7227,7 +7227,7 @@ static void D3D12_INTERNAL_InitBlitPipelines(
         SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to compile blit from 2D pixel shader!");
     }
 
-    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_MAX; ++format) {
+    for (int format = 0; format < SDL_GPU_TEXTUREFORMAT_COUNT; ++format) {
         if (!D3D12_INTERNAL_IsBlittableTextureFormat((SDL_GpuTextureFormat)format))
             continue;
 
