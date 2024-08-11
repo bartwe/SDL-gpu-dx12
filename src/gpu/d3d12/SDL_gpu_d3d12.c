@@ -5963,20 +5963,26 @@ static void D3D12_INTERNAL_DestroySwapchain(
 {
     /* Release views and clean up */
     for (Uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
-        D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
-            renderer,
-            &windowData->textureContainers[i].activeTexture->srvHandle);
-        D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
-            renderer,
-            &windowData->textureContainers[i].activeTexture->subresources[0].rtvHandle);
+        if (windowData->textureContainers[i].activeTexture) {
+            D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
+                renderer,
+                &windowData->textureContainers[i].activeTexture->srvHandle);
+            D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
+                renderer,
+                &windowData->textureContainers[i].activeTexture->subresources[0].rtvHandle);
 
-        SDL_free(windowData->textureContainers[i].activeTexture->subresources);
-        SDL_free(windowData->textureContainers[i].activeTexture);
+            SDL_free(windowData->textureContainers[i].activeTexture->subresources);
+            SDL_free(windowData->textureContainers[i].activeTexture);
+            windowData->textureContainers[i].activeTexture = NULL;
+        }
         SDL_free(windowData->textureContainers[i].textures);
+        windowData->textureContainers[i].textures = NULL;
     }
 
-    IDXGISwapChain_Release(windowData->swapchain);
-    windowData->swapchain = NULL;
+    if (windowData->swapchain) {
+        IDXGISwapChain_Release(windowData->swapchain);
+        windowData->swapchain = NULL;
+    }
 }
 
 static SDL_bool D3D12_INTERNAL_CreateSwapchain(
@@ -6065,6 +6071,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
 
     if (!(colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Requested colorspace is unsupported!");
+        IDXGISwapChain3_Release(swapchain3);
         return SDL_FALSE;
     }
 
@@ -6239,7 +6246,7 @@ static SDL_bool D3D12_SetSwapchainParameters(
         return SDL_FALSE;
     }
 
-    if (
+    if (windowData->swapchain == NULL ||
         swapchainComposition != windowData->swapchainComposition ||
         presentMode != windowData->presentMode) {
         D3D12_Wait(driverData);
