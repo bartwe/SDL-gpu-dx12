@@ -785,6 +785,7 @@ typedef struct SDL_GpuStorageTextureReadWriteBinding
  * \sa SDL_GpuGetDriver
  * \sa SDL_GpuDestroyDevice
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuDevice *SDLCALL SDL_GpuCreateDevice(
     SDL_bool debugMode,
     SDL_bool preferLowPower,
@@ -812,6 +813,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuDestroyDevice(SDL_GpuDevice *device);
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuDriver SDLCALL SDL_GpuGetDriver(SDL_GpuDevice *device);
 
 /* State Creation */
@@ -848,6 +850,7 @@ extern SDL_DECLSPEC SDL_GpuDriver SDLCALL SDL_GpuGetDriver(SDL_GpuDevice *device
  * \sa SDL_GpuBindComputePipeline
  * \sa SDL_GpuReleaseComputePipeline
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuComputePipeline *SDLCALL SDL_GpuCreateComputePipeline(
     SDL_GpuDevice *device,
     SDL_GpuComputePipelineCreateInfo *computePipelineCreateInfo);
@@ -865,6 +868,7 @@ extern SDL_DECLSPEC SDL_GpuComputePipeline *SDLCALL SDL_GpuCreateComputePipeline
  * \sa SDL_GpuBindGraphicsPipeline
  * \sa SDL_GpuReleaseGraphicsPipeline
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuGraphicsPipeline *SDLCALL SDL_GpuCreateGraphicsPipeline(
     SDL_GpuDevice *device,
     SDL_GpuGraphicsPipelineCreateInfo *pipelineCreateInfo);
@@ -882,6 +886,7 @@ extern SDL_DECLSPEC SDL_GpuGraphicsPipeline *SDLCALL SDL_GpuCreateGraphicsPipeli
  * \sa SDL_GpuBindFragmentSamplers
  * \sa SDL_ReleaseSampler
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuSampler *SDLCALL SDL_GpuCreateSampler(
     SDL_GpuDevice *device,
     SDL_GpuSamplerCreateInfo *samplerCreateInfo);
@@ -926,6 +931,7 @@ extern SDL_DECLSPEC SDL_GpuSampler *SDLCALL SDL_GpuCreateSampler(
  * \sa SDL_GpuCreateGraphicsPipeline
  * \sa SDL_GpuReleaseShader
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuShader *SDLCALL SDL_GpuCreateShader(
     SDL_GpuDevice *device,
     SDL_GpuShaderCreateInfo *shaderCreateInfo);
@@ -965,6 +971,7 @@ extern SDL_DECLSPEC SDL_GpuShader *SDLCALL SDL_GpuCreateShader(
  * \sa SDL_GpuReleaseTexture
  * \sa SDL_GpuSupportsTextureFormat
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuTexture *SDLCALL SDL_GpuCreateTexture(
     SDL_GpuDevice *device,
     SDL_GpuTextureCreateInfo *textureCreateInfo);
@@ -991,6 +998,7 @@ extern SDL_DECLSPEC SDL_GpuTexture *SDLCALL SDL_GpuCreateTexture(
  * \sa SDL_GpuBindComputeStorageBuffers
  * \sa SDL_GpuReleaseBuffer
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuBuffer *SDLCALL SDL_GpuCreateBuffer(
     SDL_GpuDevice *device,
     SDL_GpuBufferUsageFlags usageFlags,
@@ -1012,6 +1020,7 @@ extern SDL_DECLSPEC SDL_GpuBuffer *SDLCALL SDL_GpuCreateBuffer(
  * \sa SDL_GpuDownloadFromTexture
  * \sa SDL_GpuReleaseTransferBuffer
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuTransferBuffer *SDLCALL SDL_GpuCreateTransferBuffer(
     SDL_GpuDevice *device,
     SDL_GpuTransferBufferUsage usage,
@@ -1214,6 +1223,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuReleaseGraphicsPipeline(
  * \sa SDL_GpuSubmit
  * \sa SDL_GpuSubmitAndAcquireFence
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuCommandBuffer *SDLCALL SDL_GpuAcquireCommandBuffer(
     SDL_GpuDevice *device);
 
@@ -1348,6 +1358,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuPushComputeUniformData(
  *
  * \sa SDL_GpuEndRenderPass
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuRenderPass *SDLCALL SDL_GpuBeginRenderPass(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_GpuColorAttachmentInfo *colorAttachmentInfos,
@@ -1636,6 +1647,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuEndRenderPass(
  *
  * \sa SDL_GpuEndComputePass
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuComputePass *SDLCALL SDL_GpuBeginComputePass(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_GpuStorageTextureReadWriteBinding *storageTextureBindings,
@@ -1791,6 +1803,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuUnmapTransferBuffer(
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuCopyPass *SDLCALL SDL_GpuBeginCopyPass(
     SDL_GpuCommandBuffer *commandBuffer);
 
@@ -1966,6 +1979,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuBlit(
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsSwapchainComposition(
     SDL_GpuDevice *device,
     SDL_Window *window,
@@ -1982,6 +1996,7 @@ extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsSwapchainComposition(
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsPresentMode(
     SDL_GpuDevice *device,
     SDL_Window *window,
@@ -2013,6 +2028,7 @@ extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsPresentMode(
  * \sa SDL_GpuSupportsPresentMode
  * \sa SDL_GpuSupportsSwapchainComposition
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuClaimWindow(
     SDL_GpuDevice *device,
     SDL_Window *window,
@@ -2055,6 +2071,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuUnclaimWindow(
  * \sa SDL_GpuSupportsPresentMode
  * \sa SDL_GpuSupportsSwapchainComposition
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSetSwapchainParameters(
     SDL_GpuDevice *device,
     SDL_Window *window,
@@ -2071,6 +2088,7 @@ extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSetSwapchainParameters(
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuTextureFormat SDLCALL SDL_GpuGetSwapchainTextureFormat(
     SDL_GpuDevice *device,
     SDL_Window *window);
@@ -2096,6 +2114,7 @@ extern SDL_DECLSPEC SDL_GpuTextureFormat SDLCALL SDL_GpuGetSwapchainTextureForma
  * \sa SDL_GpuSubmit
  * \sa SDL_GpuSubmitAndAcquireFence
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuTexture *SDLCALL SDL_GpuAcquireSwapchainTexture(
     SDL_GpuCommandBuffer *commandBuffer,
     SDL_Window *window,
@@ -2133,6 +2152,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuSubmit(
  * \sa SDL_GpuSubmit
  * \sa SDL_GpuReleaseFence
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuFence *SDLCALL SDL_GpuSubmitAndAcquireFence(
     SDL_GpuCommandBuffer *commandBuffer);
 
@@ -2178,6 +2198,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuWaitForFences(
  *
  * \sa SDL_GpuSubmitAndAcquireFence
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuQueryFence(
     SDL_GpuDevice *device,
     SDL_GpuFence *fence);
@@ -2208,6 +2229,7 @@ extern SDL_DECLSPEC void SDLCALL SDL_GpuReleaseFence(
  *
  * \sa SDL_GpuUploadToTexture
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC Uint32 SDLCALL SDL_GpuTextureFormatTexelBlockSize(
     SDL_GpuTextureFormat textureFormat);
 
@@ -2222,6 +2244,7 @@ extern SDL_DECLSPEC Uint32 SDLCALL SDL_GpuTextureFormatTexelBlockSize(
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsTextureFormat(
     SDL_GpuDevice *device,
     SDL_GpuTextureFormat format,
@@ -2239,6 +2262,7 @@ extern SDL_DECLSPEC SDL_bool SDLCALL SDL_GpuSupportsTextureFormat(
  *
  * \since This function is available since SDL 3.x.x
  */
+SDL_NODISCARD
 extern SDL_DECLSPEC SDL_GpuSampleCount SDLCALL SDL_GpuGetBestSampleCount(
     SDL_GpuDevice *device,
     SDL_GpuTextureFormat format,
