@@ -477,7 +477,7 @@ typedef struct D3D12WindowData
     SDL_GpuSwapchainComposition swapchainComposition;
     DXGI_FORMAT swapchainFormat;
     DXGI_FORMAT swapchainCompositionFormat;
-    
+
     DXGI_COLOR_SPACE_TYPE swapchainColorSpace;
     Uint32 frameCounter;
 
@@ -925,14 +925,14 @@ static SDL_bool D3D12_INTERNAL_IsBlittableTextureFormat(SDL_GpuTextureFormat for
     case SDL_GPU_TEXTUREFORMAT_R32G32_SFLOAT:
     case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_SFLOAT:
 
-    /*
-    case SDL_GPU_TEXTUREFORMAT_R8_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R8G8_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R16_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R16G16_UINT:
-    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
-    */
+        /*
+        case SDL_GPU_TEXTUREFORMAT_R8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R8G8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R16_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R16G16_UINT:
+        case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
+        */
 
     case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SRGB:
     case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB:
@@ -943,14 +943,14 @@ static SDL_bool D3D12_INTERNAL_IsBlittableTextureFormat(SDL_GpuTextureFormat for
     }
 }
 
-static SDL_GpuTextureFormat D3D12_INTERNAL_LookupGpuTextureFormat(DXGI_FORMAT format) {
-    for (int i =0 ; i < SDL_GPU_TEXTUREFORMAT_COUNT; ++i) {
+static SDL_GpuTextureFormat D3D12_INTERNAL_LookupGpuTextureFormat(DXGI_FORMAT format)
+{
+    for (int i = 0; i < SDL_GPU_TEXTUREFORMAT_COUNT; ++i) {
         if (SDLToD3D12_TextureFormat[i] == format)
             return i;
     }
     return SDL_GPU_TEXTUREFORMAT_INVALID;
 }
-
 
 /* Release / Cleanup */
 
@@ -3372,11 +3372,11 @@ static void D3D12_InsertDebugLabel(
     Uint32 convSize;
 
     if (!D3D12_INTERNAL_StrToWStr(
-        d3d12CommandBuffer->renderer,
-        text,
-        wstr,
-        sizeof(wstr),
-        &convSize)) {
+            d3d12CommandBuffer->renderer,
+            text,
+            wstr,
+            sizeof(wstr),
+            &convSize)) {
         return;
     }
 
@@ -3396,11 +3396,11 @@ static void D3D12_PushDebugGroup(
     Uint32 convSize;
 
     if (!D3D12_INTERNAL_StrToWStr(
-        d3d12CommandBuffer->renderer,
-        name,
-        wstr,
-        sizeof(wstr),
-        &convSize)) {
+            d3d12CommandBuffer->renderer,
+            name,
+            wstr,
+            sizeof(wstr),
+            &convSize)) {
         return;
     }
 
@@ -5979,20 +5979,26 @@ static void D3D12_INTERNAL_DestroySwapchain(
 {
     /* Release views and clean up */
     for (Uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i += 1) {
-        D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
-            renderer,
-            &windowData->textureContainers[i].activeTexture->srvHandle);
-        D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
-            renderer,
-            &windowData->textureContainers[i].activeTexture->subresources[0].rtvHandle);
+        if (windowData->textureContainers[i].activeTexture) {
+            D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
+                renderer,
+                &windowData->textureContainers[i].activeTexture->srvHandle);
+            D3D12_INTERNAL_ReleaseCpuDescriptorHandle(
+                renderer,
+                &windowData->textureContainers[i].activeTexture->subresources[0].rtvHandle);
 
-        SDL_free(windowData->textureContainers[i].activeTexture->subresources);
-        SDL_free(windowData->textureContainers[i].activeTexture);
+            SDL_free(windowData->textureContainers[i].activeTexture->subresources);
+            SDL_free(windowData->textureContainers[i].activeTexture);
+            windowData->textureContainers[i].activeTexture = NULL;
+        }
         SDL_free(windowData->textureContainers[i].textures);
+        windowData->textureContainers[i].textures = NULL;
     }
 
-    IDXGISwapChain_Release(windowData->swapchain);
-    windowData->swapchain = NULL;
+    if (windowData->swapchain) {
+        IDXGISwapChain_Release(windowData->swapchain);
+        windowData->swapchain = NULL;
+    }
 }
 
 static SDL_bool D3D12_INTERNAL_CreateSwapchain(
@@ -6081,6 +6087,7 @@ static SDL_bool D3D12_INTERNAL_CreateSwapchain(
 
     if (!(colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Requested colorspace is unsupported!");
+        IDXGISwapChain3_Release(swapchain3);
         return SDL_FALSE;
     }
 
@@ -6255,7 +6262,7 @@ static SDL_bool D3D12_SetSwapchainParameters(
         return SDL_FALSE;
     }
 
-    if (
+    if (windowData->swapchain == NULL ||
         swapchainComposition != windowData->swapchainComposition ||
         presentMode != windowData->presentMode) {
         D3D12_Wait(driverData);
@@ -7270,11 +7277,10 @@ static void D3D12_INTERNAL_InitBlitPipelines(
         blitPipelineCreateInfo.blendConstants[1] = 1.0f;
         blitPipelineCreateInfo.blendConstants[2] = 1.0f;
         blitPipelineCreateInfo.blendConstants[3] = 1.0f;
-        
+
         blitPipelineCreateInfo.rasterizerState.fillMode = SDL_GPU_FILLMODE_FILL;
         blitPipelineCreateInfo.rasterizerState.cullMode = SDL_GPU_CULLMODE_NONE;
         blitPipelineCreateInfo.rasterizerState.frontFace = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
-
 
         renderer->blitFrom2DPipelines[format] = D3D12_CreateGraphicsPipeline(
             (SDL_GpuRenderer *)renderer,
