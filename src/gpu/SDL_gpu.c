@@ -100,6 +100,20 @@
 #define COPYPASS_DEVICE \
     ((CommandBufferCommonHeader *)COPYPASS_COMMAND_BUFFER)->device
 
+#define CHECK_ENUM_RANGE(resource, type, retval)                                                          \
+    if (!(((resource) > type##_INVALID) && ((resource) < type##_COUNT))) {                                \
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, ("Argument of type " #type " out of range. (" #resource ")")); \
+        SDL_SetError("Argument of type " #type " out of range. (" #resource ")");                         \
+        return retval;                                                                                    \
+    }
+
+#define CHECK_ENUM_MASKCHECK(resource, type, retval)                                                      \
+    if (!(((resource) > type##_INVALID) && (!((resource) & ~type##_MASKCHECK)))) {                        \
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, ("Argument of type " #type " out of range. (" #resource ")")); \
+        SDL_SetError("Argument of type " #type " out of range. (" #resource ")");                         \
+        return retval;                                                                                    \
+    }
+
 /* Drivers */
 
 static const SDL_GpuBootstrap *backends[] = {
@@ -248,6 +262,9 @@ SDL_bool SDL_GpuSupportsTextureFormat(
 {
     CHECK_DEVICE_MAGIC(device, SDL_FALSE);
 
+    CHECK_ENUM_RANGE(format, SDL_GPU_TEXTUREFORMAT, SDL_FALSE);
+    CHECK_ENUM_RANGE(type, SDL_GPU_TEXTURETYPE, SDL_FALSE);
+
     return device->SupportsTextureFormat(
         device->driverData,
         format,
@@ -261,6 +278,8 @@ SDL_GpuSampleCount SDL_GpuGetBestSampleCount(
     SDL_GpuSampleCount desiredSampleCount)
 {
     CHECK_DEVICE_MAGIC(device, 0);
+    CHECK_ENUM_RANGE(format, SDL_GPU_TEXTUREFORMAT, SDL_FALSE);
+    CHECK_ENUM_RANGE(desiredSampleCount, SDL_GPU_SAMPLECOUNT, SDL_FALSE);
 
     return device->GetBestSampleCount(
         device->driverData,
@@ -279,6 +298,8 @@ SDL_GpuComputePipeline *SDL_GpuCreateComputePipeline(
         SDL_InvalidParamError("computePipelineCreateInfo");
         return NULL;
     }
+
+    CHECK_ENUM_RANGE(computePipelineCreateInfo->format, SDL_GPU_SHADERFORMAT, NULL);
 
     if (device->debugMode) {
         if (computePipelineCreateInfo->threadCountX == 0 ||
@@ -304,6 +325,42 @@ SDL_GpuGraphicsPipeline *SDL_GpuCreateGraphicsPipeline(
     if (graphicsPipelineCreateInfo == NULL) {
         SDL_InvalidParamError("graphicsPipelineCreateInfo");
         return NULL;
+    }
+
+    for (Uint32 i = 0; i < graphicsPipelineCreateInfo->vertexInputState.vertexBindingCount; ++i) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->vertexInputState.vertexBindings[i].inputRate, SDL_GPU_VERTEXINPUTRATE, NULL);
+    }
+    for (Uint32 i = 0; i < graphicsPipelineCreateInfo->vertexInputState.vertexAttributeCount; ++i) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->vertexInputState.vertexAttributes[i].format, SDL_GPU_VERTEXELEMENTFORMAT, NULL);
+    }
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->primitiveType, SDL_GPU_PRIMITIVETYPE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->rasterizerState.fillMode, SDL_GPU_FILLMODE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->rasterizerState.cullMode, SDL_GPU_CULLMODE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->rasterizerState.frontFace, SDL_GPU_FRONTFACE, NULL);
+    CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->multisampleState.sampleCount, SDL_GPU_SAMPLECOUNT, NULL);
+    if (graphicsPipelineCreateInfo->depthStencilState.depthTestEnable) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
+    }
+
+    if (graphicsPipelineCreateInfo->depthStencilState.stencilTestEnable) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.depthFailOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.failOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.frontStencilState.passOp, SDL_GPU_STENCILOP, NULL);
+
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.compareOp, SDL_GPU_COMPAREOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.depthFailOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.failOp, SDL_GPU_STENCILOP, NULL);
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->depthStencilState.backStencilState.passOp, SDL_GPU_STENCILOP, NULL);
+    }
+
+    if (graphicsPipelineCreateInfo->attachmentInfo.hasDepthStencilAttachment) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->attachmentInfo.depthStencilFormat, SDL_GPU_TEXTUREFORMAT, NULL);
+    }
+
+    for (Uint32 i = 0; i < graphicsPipelineCreateInfo->attachmentInfo.colorAttachmentCount; ++i) {
+        CHECK_ENUM_RANGE(graphicsPipelineCreateInfo->attachmentInfo.colorAttachmentDescriptions[i].format, SDL_GPU_TEXTUREFORMAT, NULL);
+        /* todo, blendstates */
     }
 
     /* Automatically swap out the depth format if it's unsupported.
@@ -358,6 +415,15 @@ SDL_GpuSampler *SDL_GpuCreateSampler(
         return NULL;
     }
 
+    CHECK_ENUM_RANGE(samplerCreateInfo->minFilter, SDL_GPU_FILTER, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->magFilter, SDL_GPU_FILTER, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->mipmapMode, SDL_GPU_SAMPLERMIPMAPMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->addressModeU, SDL_GPU_SAMPLERADDRESSMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->addressModeV, SDL_GPU_SAMPLERADDRESSMODE, NULL);
+    CHECK_ENUM_RANGE(samplerCreateInfo->addressModeW, SDL_GPU_SAMPLERADDRESSMODE, NULL);
+    if (samplerCreateInfo->compareEnable)
+        CHECK_ENUM_RANGE(samplerCreateInfo->compareOp, SDL_GPU_COMPAREOP, NULL);
+
     return device->CreateSampler(
         device->driverData,
         samplerCreateInfo);
@@ -373,6 +439,9 @@ SDL_GpuShader *SDL_GpuCreateShader(
         return NULL;
     }
 
+    CHECK_ENUM_RANGE(shaderCreateInfo->format, SDL_GPU_SHADERFORMAT, NULL);
+    CHECK_ENUM_RANGE(shaderCreateInfo->stage, SDL_GPU_SHADERSTAGE, NULL);
+
     return device->CreateShader(
         device->driverData,
         shaderCreateInfo);
@@ -387,6 +456,10 @@ SDL_GpuTexture *SDL_GpuCreateTexture(
         SDL_InvalidParamError("textureCreateInfo");
         return NULL;
     }
+
+    CHECK_ENUM_RANGE(textureCreateInfo->sampleCount, SDL_GPU_SAMPLECOUNT, NULL);
+    CHECK_ENUM_RANGE(textureCreateInfo->format, SDL_GPU_TEXTUREFORMAT, NULL);
+    CHECK_ENUM_MASKCHECK(textureCreateInfo->usageFlags, SDL_GPU_TEXTUREUSAGE, NULL);
 
     if (device->debugMode) {
         SDL_bool failed = SDL_FALSE;
@@ -500,6 +573,7 @@ SDL_GpuBuffer *SDL_GpuCreateBuffer(
     Uint32 sizeInBytes)
 {
     CHECK_DEVICE_MAGIC(device, NULL);
+    CHECK_ENUM_MASKCHECK(usageFlags, SDL_GPU_BUFFERUSAGE, NULL);
 
     return device->CreateBuffer(
         device->driverData,
@@ -513,6 +587,7 @@ SDL_GpuTransferBuffer *SDL_GpuCreateTransferBuffer(
     Uint32 sizeInBytes)
 {
     CHECK_DEVICE_MAGIC(device, NULL);
+    CHECK_ENUM_RANGE(usage, SDL_GPU_TRANSFERBUFFERUSAGE, NULL);
 
     return device->CreateTransferBuffer(
         device->driverData,
@@ -851,6 +926,18 @@ SDL_GpuRenderPass *SDL_GpuBeginRenderPass(
     if (colorAttachmentInfos == NULL && colorAttachmentCount > 0) {
         SDL_InvalidParamError("colorAttachmentInfos");
         return NULL;
+    }
+
+    for (Uint32 i = 0; i < colorAttachmentCount; ++i) {
+        CHECK_ENUM_RANGE(colorAttachmentInfos[i].loadOp, SDL_GPU_LOADOP, NULL);
+        CHECK_ENUM_RANGE(colorAttachmentInfos[i].storeOp, SDL_GPU_STOREOP, NULL);
+    }
+
+    if (depthStencilAttachmentInfo) {
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->loadOp, SDL_GPU_LOADOP, NULL);
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->storeOp, SDL_GPU_STOREOP, NULL);
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->stencilLoadOp, SDL_GPU_LOADOP, NULL);
+        CHECK_ENUM_RANGE(depthStencilAttachmentInfo->stencilStoreOp, SDL_GPU_STOREOP, NULL);
     }
 
     if (colorAttachmentCount > MAX_COLOR_TARGET_BINDINGS) {
@@ -1429,8 +1516,8 @@ void SDL_GpuDispatchCompute(
 void SDL_GpuDispatchComputeIndirect(
     SDL_GpuComputePass *computePass,
     SDL_GpuBuffer *buffer,
-    Uint32 offsetInBytes
-) {
+    Uint32 offsetInBytes)
+{
     if (computePass == NULL) {
         SDL_InvalidParamError("computePass");
         return;
@@ -1754,6 +1841,8 @@ void SDL_GpuBlit(
         return;
     }
 
+    CHECK_ENUM_RANGE(filterMode, SDL_GPU_FILTER, );
+
     if (COMMAND_BUFFER_DEVICE->debugMode) {
         CHECK_COMMAND_BUFFER
 
@@ -1805,6 +1894,8 @@ SDL_bool SDL_GpuSupportsSwapchainComposition(
         return SDL_FALSE;
     }
 
+    CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+
     return device->SupportsSwapchainComposition(
         device->driverData,
         window,
@@ -1821,6 +1912,8 @@ SDL_bool SDL_GpuSupportsPresentMode(
         SDL_InvalidParamError("window");
         return SDL_FALSE;
     }
+
+    CHECK_ENUM_RANGE(presentMode, SDL_GPU_PRESENTMODE, SDL_FALSE);
 
     return device->SupportsPresentMode(
         device->driverData,
@@ -1839,6 +1932,9 @@ SDL_bool SDL_GpuClaimWindow(
         SDL_InvalidParamError("window");
         return SDL_FALSE;
     }
+
+    CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+    CHECK_ENUM_RANGE(presentMode, SDL_GPU_PRESENTMODE, SDL_FALSE);
 
     return device->ClaimWindow(
         device->driverData,
@@ -1873,6 +1969,9 @@ SDL_bool SDL_GpuSetSwapchainParameters(
         SDL_InvalidParamError("window");
         return SDL_FALSE;
     }
+
+    CHECK_ENUM_RANGE(swapchainFormat, SDL_GPU_SWAPCHAINCOMPOSITION, SDL_FALSE);
+    CHECK_ENUM_RANGE(presentMode, SDL_GPU_PRESENTMODE, SDL_FALSE);
 
     return device->SetSwapchainParameters(
         device->driverData,

@@ -83,7 +83,7 @@ static const GUID D3D_IID_DXGI_DEBUG_ALL = { 0xe48ae283, 0xda80, 0x490b, { 0x87,
 #define DXGI_GET_DEBUG_INTERFACE_FUNC "DXGIGetDebugInterface"
 #define WINDOW_PROPERTY_DATA          "SDL_GpuD3D11WindowPropertyData"
 
-#define SDL_GPU_SHADERSTAGE_COMPUTE 2
+#define SDL_GPU_SHADERSTAGE_COMPUTE (SDL_GPU_SHADERSTAGE_FRAGMENT + 1)
 
 #ifdef _WIN32
 #define HRESULT_FMT "(0x%08lX)"
@@ -156,6 +156,7 @@ static void D3D11_INTERNAL_DestroyBlitPipelines(SDL_GpuRenderer *driverData);
 /* Conversions */
 
 static SDL_GpuTextureFormat SwapchainCompositionToSDLTextureFormat[] = {
+    SDL_GPU_TEXTUREFORMAT_INVALID,
     SDL_GPU_TEXTUREFORMAT_B8G8R8A8,             /* SDR */
     SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB,        /* SDR_SRGB */
     SDL_GPU_TEXTUREFORMAT_R16G16B16A16_SFLOAT,  /* HDR */
@@ -163,6 +164,7 @@ static SDL_GpuTextureFormat SwapchainCompositionToSDLTextureFormat[] = {
 };
 
 static DXGI_FORMAT SwapchainCompositionToTextureFormat[] = {
+    DXGI_FORMAT_UNKNOWN,
     DXGI_FORMAT_B8G8R8A8_UNORM,                /* SDR */
     DXGI_FORMAT_B8G8R8A8_UNORM, /* SDR_SRGB */ /* NOTE: The RTV uses the sRGB format */
     DXGI_FORMAT_R16G16B16A16_FLOAT,            /* HDR */
@@ -170,6 +172,7 @@ static DXGI_FORMAT SwapchainCompositionToTextureFormat[] = {
 };
 
 static DXGI_COLOR_SPACE_TYPE SwapchainCompositionToColorSpace[] = {
+    DXGI_COLOR_SPACE_CUSTOM,
     DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709,   /* SDR */
     DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709,   /* SDR_SRGB */
     DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709,   /* HDR */
@@ -177,6 +180,7 @@ static DXGI_COLOR_SPACE_TYPE SwapchainCompositionToColorSpace[] = {
 };
 
 static DXGI_FORMAT SDLToD3D11_TextureFormat[] = {
+    DXGI_FORMAT_UNKNOWN,
     DXGI_FORMAT_R8G8B8A8_UNORM,       /* R8G8B8A8 */
     DXGI_FORMAT_B8G8R8A8_UNORM,       /* B8G8R8A8 */
     DXGI_FORMAT_B5G6R5_UNORM,         /* B5G6R5 */
@@ -217,6 +221,7 @@ static DXGI_FORMAT SDLToD3D11_TextureFormat[] = {
 };
 
 static DXGI_FORMAT SDLToD3D11_VertexFormat[] = {
+    DXGI_FORMAT_UNKNOWN,
     DXGI_FORMAT_R32_UINT,           /* UINT */
     DXGI_FORMAT_R32_FLOAT,          /* FLOAT */
     DXGI_FORMAT_R32G32_FLOAT,       /* VECTOR2 */
@@ -233,6 +238,7 @@ static DXGI_FORMAT SDLToD3D11_VertexFormat[] = {
 };
 
 static Uint32 SDLToD3D11_SampleCount[] = {
+    UINT32_MAX,
     1, /* SDL_GPU_SAMPLECOUNT_1 */
     2, /* SDL_GPU_SAMPLECOUNT_2 */
     4, /* SDL_GPU_SAMPLECOUNT_4 */
@@ -240,11 +246,13 @@ static Uint32 SDLToD3D11_SampleCount[] = {
 };
 
 static DXGI_FORMAT SDLToD3D11_IndexType[] = {
+    DXGI_FORMAT_UNKNOWN,
     DXGI_FORMAT_R16_UINT, /* 16BIT */
     DXGI_FORMAT_R32_UINT  /* 32BIT */
 };
 
 static D3D11_PRIMITIVE_TOPOLOGY SDLToD3D11_PrimitiveType[] = {
+    D3D_PRIMITIVE_TOPOLOGY_UNDEFINED,
     D3D_PRIMITIVE_TOPOLOGY_POINTLIST,    /* POINTLIST */
     D3D_PRIMITIVE_TOPOLOGY_LINELIST,     /* LINELIST */
     D3D_PRIMITIVE_TOPOLOGY_LINESTRIP,    /* LINESTRIP */
@@ -253,12 +261,14 @@ static D3D11_PRIMITIVE_TOPOLOGY SDLToD3D11_PrimitiveType[] = {
 };
 
 static D3D11_CULL_MODE SDLToD3D11_CullMode[] = {
+    (D3D11_CULL_MODE)0,
     D3D11_CULL_NONE,  /* NONE */
     D3D11_CULL_FRONT, /* FRONT */
     D3D11_CULL_BACK   /* BACK */
 };
 
 static D3D11_BLEND SDLToD3D11_BlendFactor[] = {
+    (D3D11_BLEND)0,
     D3D11_BLEND_ZERO,             /* ZERO */
     D3D11_BLEND_ONE,              /* ONE */
     D3D11_BLEND_SRC_COLOR,        /* SRC_COLOR */
@@ -275,6 +285,7 @@ static D3D11_BLEND SDLToD3D11_BlendFactor[] = {
 };
 
 static D3D11_BLEND SDLToD3D11_BlendFactorAlpha[] = {
+    (D3D11_BLEND)0,
     D3D11_BLEND_ZERO,             /* ZERO */
     D3D11_BLEND_ONE,              /* ONE */
     D3D11_BLEND_SRC_ALPHA,        /* SRC_COLOR */
@@ -291,6 +302,7 @@ static D3D11_BLEND SDLToD3D11_BlendFactorAlpha[] = {
 };
 
 static D3D11_BLEND_OP SDLToD3D11_BlendOp[] = {
+    (D3D11_BLEND_OP)0,
     D3D11_BLEND_OP_ADD,          /* ADD */
     D3D11_BLEND_OP_SUBTRACT,     /* SUBTRACT */
     D3D11_BLEND_OP_REV_SUBTRACT, /* REVERSE_SUBTRACT */
@@ -299,6 +311,7 @@ static D3D11_BLEND_OP SDLToD3D11_BlendOp[] = {
 };
 
 static D3D11_COMPARISON_FUNC SDLToD3D11_CompareOp[] = {
+    (D3D11_COMPARISON_FUNC)0,
     D3D11_COMPARISON_NEVER,         /* NEVER */
     D3D11_COMPARISON_LESS,          /* LESS */
     D3D11_COMPARISON_EQUAL,         /* EQUAL */
@@ -310,6 +323,7 @@ static D3D11_COMPARISON_FUNC SDLToD3D11_CompareOp[] = {
 };
 
 static D3D11_STENCIL_OP SDLToD3D11_StencilOp[] = {
+    (D3D11_STENCIL_OP)0,
     D3D11_STENCIL_OP_KEEP,     /* KEEP */
     D3D11_STENCIL_OP_ZERO,     /* ZERO */
     D3D11_STENCIL_OP_REPLACE,  /* REPLACE */
@@ -321,11 +335,13 @@ static D3D11_STENCIL_OP SDLToD3D11_StencilOp[] = {
 };
 
 static D3D11_INPUT_CLASSIFICATION SDLToD3D11_VertexInputRate[] = {
+    (D3D11_INPUT_CLASSIFICATION)-1,
     D3D11_INPUT_PER_VERTEX_DATA,  /* VERTEX */
     D3D11_INPUT_PER_INSTANCE_DATA /* INSTANCE */
 };
 
 static D3D11_TEXTURE_ADDRESS_MODE SDLToD3D11_SamplerAddressMode[] = {
+    (D3D11_TEXTURE_ADDRESS_MODE)0,
     D3D11_TEXTURE_ADDRESS_WRAP,   /* REPEAT */
     D3D11_TEXTURE_ADDRESS_MIRROR, /* MIRRORED_REPEAT */
     D3D11_TEXTURE_ADDRESS_CLAMP   /* CLAMP_TO_EDGE */
@@ -5166,6 +5182,8 @@ static SDL_bool D3D11_SupportsPresentMode(
         return SDL_TRUE;
     case SDL_GPU_PRESENTMODE_MAILBOX:
         return renderer->supportsFlipDiscard;
+    default:
+        break;
     }
     SDL_assert(!"Unrecognized present mode");
     return SDL_FALSE;
@@ -5840,6 +5858,10 @@ static void D3D11_INTERNAL_InitBlitPipelines(
     blitPipelineCreateInfo.blendConstants[1] = 1.0f;
     blitPipelineCreateInfo.blendConstants[2] = 1.0f;
     blitPipelineCreateInfo.blendConstants[3] = 1.0f;
+
+    blitPipelineCreateInfo.rasterizerState.fillMode = SDL_GPU_FILLMODE_FILL;
+    blitPipelineCreateInfo.rasterizerState.cullMode = SDL_GPU_CULLMODE_NONE;
+    blitPipelineCreateInfo.rasterizerState.frontFace = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
     renderer->blitFrom2DPipeline = D3D11_CreateGraphicsPipeline(
         (SDL_GpuRenderer *)renderer,
