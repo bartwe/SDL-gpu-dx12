@@ -473,12 +473,15 @@ init_render_state(int msaa)
     /* Claim the windows */
 
     for (i = 0; i < state->num_windows; i++) {
-        SDL_GpuClaimWindow(
+        if (!SDL_GpuClaimWindow(
             gpu_device,
             state->windows[i],
             SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
             SDL_GPU_PRESENTMODE_VSYNC
-        );
+        )) {
+		    SDL_Log("GpuClaimWindow failed");
+		    quit(2);
+	    }
     }
 
     /* Create shaders */
