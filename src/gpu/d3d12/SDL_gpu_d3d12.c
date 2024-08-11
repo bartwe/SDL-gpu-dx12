@@ -96,7 +96,7 @@
 #define D3D12_FENCE_UNSIGNALED_VALUE          0
 #define D3D12_FENCE_SIGNAL_VALUE              1
 
-#define SDL_GPU_SHADERSTAGE_COMPUTE (SDL_GpuShaderStage)2
+#define SDL_GPU_SHADERSTAGE_COMPUTE (SDL_GPU_SHADERSTAGE_FRAGMENT + 1)
 
 #define EXPAND_ELEMENTS_IF_NEEDED(arr, initialValue, type) \
     if (arr->count == arr->capacity) {                     \
