@@ -106,6 +106,9 @@ this should probably be removed at some point in the future.  --ryan. */
 
 #ifndef SDL_RENDER_DISABLED
 static const SDL_RenderDriver *render_drivers[] = {
+#if SDL_VIDEO_RENDER_GPU
+    &GPU_RenderDriver,
+#endif
 #if SDL_VIDEO_RENDER_D3D11
     &D3D11_RenderDriver,
 #endif
