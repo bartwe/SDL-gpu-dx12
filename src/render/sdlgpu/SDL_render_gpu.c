@@ -103,11 +103,6 @@ typedef struct GPU_TextureData
 #endif
 } GPU_TextureData;
 
-enum
-{
-    BLEND_INVALID = 0x7fffffff,
-};
-
 static SDL_GpuBlendFactor GetBlendFunc(SDL_BlendFactor factor)
 {
     switch (factor) {
@@ -132,7 +127,7 @@ static SDL_GpuBlendFactor GetBlendFunc(SDL_BlendFactor factor)
     case SDL_BLENDFACTOR_ONE_MINUS_DST_ALPHA:
         return SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
     default:
-        return BLEND_INVALID;
+        return SDL_GPU_BLENDFACTOR_INVALID;
     }
 }
 
@@ -150,7 +145,7 @@ static SDL_GpuBlendOp GetBlendEquation(SDL_BlendOperation operation)
     case SDL_BLENDOPERATION_MAXIMUM:
         return SDL_GPU_BLENDOP_MAX;
     default:
-        return BLEND_INVALID;
+        return SDL_GPU_BLENDOP_INVALID;
     }
 }
 
@@ -163,12 +158,12 @@ static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blen
     SDL_BlendFactor dstAlphaFactor = SDL_GetBlendModeDstAlphaFactor(blendMode);
     SDL_BlendOperation alphaOperation = SDL_GetBlendModeAlphaOperation(blendMode);
 
-    if (GetBlendFunc(srcColorFactor) == BLEND_INVALID ||
-        GetBlendFunc(srcAlphaFactor) == BLEND_INVALID ||
-        GetBlendEquation(colorOperation) == BLEND_INVALID ||
-        GetBlendFunc(dstColorFactor) == BLEND_INVALID ||
-        GetBlendFunc(dstAlphaFactor) == BLEND_INVALID ||
-        GetBlendEquation(alphaOperation) == BLEND_INVALID) {
+    if (GetBlendFunc(srcColorFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GetBlendFunc(srcAlphaFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GetBlendEquation(colorOperation) == SDL_GPU_BLENDOP_INVALID ||
+        GetBlendFunc(dstColorFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GetBlendFunc(dstAlphaFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GetBlendEquation(alphaOperation) == SDL_GPU_BLENDOP_INVALID) {
         return SDL_FALSE;
     }
 
