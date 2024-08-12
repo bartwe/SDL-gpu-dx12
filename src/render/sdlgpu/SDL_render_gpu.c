@@ -378,7 +378,7 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
         // If not, maybe use SDL_GpuTextureTransferInfo::imagePitch instead of this
         const Uint8 *input = pixels;
 
-        for (Uint32 i = 0; i < rect->h; ++i) {
+        for (int i = 0; i < rect->h; ++i) {
             memcpy(output, input, row_size);
             output += row_size;
             input += pitch;
@@ -578,14 +578,13 @@ static SDL_FColor GetDrawCmdColor(SDL_Renderer *renderer, SDL_RenderCommand *cmd
 static int GPU_QueueDrawPoints(SDL_Renderer *renderer, SDL_RenderCommand *cmd, const SDL_FPoint *points, int count)
 {
     float *verts = (float *)SDL_AllocateRenderVertices(renderer, count * 2 * sizeof(float), 0, &cmd->data.draw.first);
-    Uint32 i;
 
     if (!verts) {
         return -1;
     }
 
     cmd->data.draw.count = count;
-    for (i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
         *(verts++) = 0.5f + points[i].x;
         *(verts++) = 0.5f + points[i].y;
     }
@@ -860,7 +859,7 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
 
     SDL_GpuBufferRegion dst = { 0 };
     dst.buffer = data->vertices.buffer;
-    dst.size = vertsize;
+    dst.size = (Uint32)vertsize;
 
     SDL_GpuUploadToBuffer(pass, &src, &dst, SDL_TRUE);
     SDL_GpuEndCopyPass(pass);
@@ -957,8 +956,8 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
 
         case SDL_RENDERCMD_DRAW_LINES:
         {
-            size_t count = cmd->data.draw.count;
-            size_t offset = cmd->data.draw.first;
+            Uint32 count = (Uint32)cmd->data.draw.count;
+            Uint32 offset = (Uint32)cmd->data.draw.first;
 
             if (count > 2) {
                 /* joined lines cannot be grouped */
@@ -979,7 +978,7 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
                         break; /* can't go any further on this draw call, different blendmode copy up next. */
                     } else {
                         finalcmd = nextcmd; /* we can combine copy operations here. Mark this one as the furthest okay command. */
-                        count += nextcmd->data.draw.count;
+                        count += (Uint32)nextcmd->data.draw.count;
                     }
                     nextcmd = nextcmd->next;
                 }
@@ -1000,7 +999,7 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
             const SDL_RenderCommandType thiscmdtype = cmd->command;
             SDL_RenderCommand *finalcmd = cmd;
             SDL_RenderCommand *nextcmd = cmd->next;
-            size_t count = cmd->data.draw.count;
+            Uint32 count = (Uint32)cmd->data.draw.count;
 
             while (nextcmd) {
                 const SDL_RenderCommandType nextcmdtype = nextcmd->command;
@@ -1011,12 +1010,12 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
                     break; /* can't go any further on this draw call, different texture/blendmode copy up next. */
                 } else {
                     finalcmd = nextcmd; /* we can combine copy operations here. Mark this one as the furthest okay command. */
-                    count += nextcmd->data.draw.count;
+                    count += (Uint32)nextcmd->data.draw.count;
                 }
                 nextcmd = nextcmd->next;
             }
 
-            size_t offset = cmd->data.draw.first;
+            Uint32 offset = (Uint32)cmd->data.draw.first;
 
             SDL_GpuPrimitiveType prim = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST; /* SDL_RENDERCMD_GEOMETRY */
             if (thiscmdtype == SDL_RENDERCMD_DRAW_POINTS) {
