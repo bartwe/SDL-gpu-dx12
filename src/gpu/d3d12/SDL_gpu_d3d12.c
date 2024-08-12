@@ -5759,6 +5759,16 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
         ID3D12Resource_Release(swapchainTexture);
         return SDL_FALSE;
     }
+
+    ID3D12Resource_GetDesc(swapchainTexture, &textureDesc);
+
+    if (textureDesc.Width > UINT32_MAX) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Swapchain texture too wide!");
+        SDL_free(pTexture);
+        ID3D12Resource_Release(swapchainTexture);
+        return SDL_FALSE;
+    }
+
     pTexture->subresources[0].srvHandle.heap = NULL;
     pTexture->subresources[0].dsvHandle.heap = NULL;
     pTexture->subresources[0].rtvHandle.heap = NULL;
@@ -5769,7 +5779,6 @@ static SDL_bool D3D12_INTERNAL_InitializeSwapchainTexture(
     pTexture->subresources[0].level = 0;
     SDL_AtomicSet(&pTexture->subresources[0].referenceCount, 0);
 
-    ID3D12Resource_GetDesc(swapchainTexture, &textureDesc);
     pTextureContainer->header.info.width = (Uint32)textureDesc.Width;
     pTextureContainer->header.info.height = (Uint32)textureDesc.Height;
     pTextureContainer->header.info.depth = 1;
