@@ -45,7 +45,7 @@ typedef struct GPU_ShaderSources
 } GPU_ShaderSources;
 
 #define SHADER_SPIRV(code) \
-    IF_VULKAN(.spirv = { code, code##_##len, SDL_GPU_SHADERFORMAT_SPIRV }, )
+    IF_VULKAN(.spirv = { code, sizeof(code), SDL_GPU_SHADERFORMAT_SPIRV }, )
 
 /* clang-format off */
 static const GPU_ShaderSources vert_shader_sources[NUM_VERT_SHADERS] = {
